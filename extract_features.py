@@ -35,7 +35,7 @@ class FeatureExtractor(nn.Module):
         return x
 
 
-def load_frames(img_list, video_root_path, num_frames=24):
+def load_frames(img_list, video_root_path, num_frames=15):
 
     lines = [line.strip() for line in open(img_list).readlines()]
 
@@ -82,6 +82,39 @@ def load_frames(img_list, video_root_path, num_frames=24):
 
     return frames_for_all_video_list, frames_names_for_all_video_list, labels_for_all_video_list
 
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+def accuracy(logits, target, topk=(1,)):
+    """Computes the precision@k for the specified values of k"""
+    maxk = max(topk)
+    batch_size = 1
+    _, pred = logits.topk(maxk, 1, True, True)
+    pred = pred.t()
+
+
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+         correct_k = correct[:k].view(-1).float().sum(0)
+         res.append(correct_k.mul_(100.0 / batch_size))
+    return res
+
 def main():
 
     # 1. build model
@@ -118,7 +151,7 @@ def main():
     all_frames, all_frame_names, all_labels = load_frames(
                                                 img_list = "./hmdb51_list/2class_frame_train.list",
                                                 video_root_path = "/home/lili/Video/datasets/HMDB51_concise",
-                                                num_frames=24)
+                                                num_frames=15)
 
     feature_dir = "./saved_features"
 
@@ -128,7 +161,12 @@ def main():
     all_logits_list = []
     all_features_list = []
 
-    for i in range(len(all_frames)):
+    correct = 0
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    toal_num_video = len(all_frames)
+    model.eval()
+    for i in range(toal_num_video):
 
         input_data = torch.stack([transform(frame) for frame in all_frames[i]])
 
@@ -146,18 +184,27 @@ def main():
         all_logits_list.append(logits_np)
         all_features_list.append(features_np)
 
-        print("logits_np.shape: ", logits_np.shape)
-        print("features_np.shape: ", features_np.shape)
+        
+        per_video_logits = np.expand_dims(np.mean(logits_np,axis=0), axis=0)
+        per_video_label = np.expand_dims(all_labels[i], axis=0)
+
+        per_video_logits = torch.from_numpy(per_video_logits)
+        per_video_label  = torch.from_numpy(per_video_label)
+
+        prec1, prec5 = accuracy(per_video_logits, per_video_label, topk=(1, 5))
+    
+        top1.update(prec1[0], 1)
+        top5.update(prec5[0], 1)
+        
+        print('video {} done, total {}/{}, moving Prec@1 {:.3f} Prec@5 {:.3f}'.format(i, i+1,
+                                                                  toal_num_video,top1.avg, top5.avg))
+   
         
     all_logits = np.asarray(all_logits_list)
     all_frame_names = np.asarray(all_frame_names)
     all_labels = np.asarray(all_labels)
     all_features = np.asarray(all_features_list)
 
-    print("all_logits.shape: ", all_logits.shape)
-    print("all_frame_names.shape: ", all_frame_names.shape)
-    print("all_labels.shape: ", all_labels.shape)
-    print("all_features.shape: ", all_features.shape)
     np.save(os.path.join(feature_dir,"train_hmdb51_logits.npy"), all_logits)
     np.save(os.path.join(feature_dir,"train_hmdb51_names.npy"),  all_frame_names)
     np.save(os.path.join(feature_dir,"train_hmdb51_labels.npy"), all_labels)

@@ -107,7 +107,7 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	model_input = (train_data).view(batch_size, -1, 24)
+	model_input = (train_data).view(batch_size, -1, 15)
 	model_input = model_input.cuda()
 	logits, att_weight = model.forward(model_input)
 
@@ -139,7 +139,7 @@ def test_step(batch_size,
 			 batch_y,
 			 model):
 	
-	test_data_batch = batch_x.view(batch_size, -1, 24).cuda()
+	test_data_batch = batch_x.view(batch_size, -1, 15).cuda()
 
 	test_logits, test_model_hidden_out = model(test_data_batch)
 	
@@ -181,7 +181,7 @@ def main():
 	test_data = torch.from_numpy(test_data)
 	test_label = torch.from_numpy(test_label)
 
-	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=24).cuda()
+	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=15).cuda()
 	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
 
 	criterion = nn.CrossEntropyLoss()  
@@ -193,18 +193,19 @@ def main():
 
 	for epoch_num in range(maxEpoch):
 
-		if FLAGS.use_changed_lr:
-			model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 0.00001, lr_decay_epochs=10)
+		#if FLAGS.use_changed_lr:
+		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 5e-4, lr_decay_epochs=100)
 		
 		lstm_action.train()
 		avg_train_accuracy = 0
 		permutation = torch.randperm(train_data.shape[0])
 		for i in range(0, train_data.shape[0], FLAGS.train_batch_size):
 			indices = permutation[i:i+FLAGS.train_batch_size]
-			batch_x, batch_y, batch_name = train_data[indices], train_label[indices], train_name[indices]
-			batch_x = Variable(batch_x).cuda().float()
-			batch_y = Variable(batch_y).cuda().long()
-			train_loss, train_accuracy = train(FLAGS.train_batch_size, batch_x, batch_y, lstm_action, model_optimizer, criterion)
+			train_batch_x, train_batch_y, train_batch_name = train_data[indices], train_label[indices], train_name[indices]
+			train_batch_x = Variable(train_batch_x).cuda().float()
+			train_batch_y = Variable(train_batch_y).cuda().long()
+			print("train_batch_name[0:5,:] ", train_batch_name[0:5])
+			train_loss, train_accuracy = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
 			
 			avg_train_accuracy+=train_accuracy
 			
@@ -220,10 +221,11 @@ def main():
 		lstm_action.eval()
 		for i in range(0, test_data.shape[0], FLAGS.test_batch_size):
 			test_indices = range(test_data.shape[0])[i: i+FLAGS.test_batch_size]
-			test_batch_x, test_batch_y = test_data[test_indices], test_label[test_indices]
+			test_batch_x, test_batch_y, test_batch_name = test_data[test_indices], test_label[test_indices], test_name[test_indices]
 			test_batch_x = Variable(test_batch_x).cuda().float()
 			test_batch_y = Variable(test_batch_y).cuda().long()
 
+			print("test_batch_name: ", test_batch_name)
 			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
            
 			avg_test_accuracy+= test_accuracy
@@ -252,8 +254,8 @@ if __name__ == '__main__':
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=100,
                     	help='max number of training epoch: [100]')
-    parser.add_argument('--num_segments', type=int, default=24,
-                    	help='num of segments per video: [24]')
+    parser.add_argument('--num_segments', type=int, default=15,
+                    	help='num of segments per video: [15]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
