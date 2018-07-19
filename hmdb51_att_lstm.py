@@ -139,7 +139,7 @@ def test_step(batch_size,
 			 batch_y,
 			 model):
 	
-	test_data_batch = batch_x.view(batch_size, -1, 15).cuda()
+	test_data_batch = batch_x.view(batch_size, -1, 24).cuda()
 
 	test_logits, test_model_hidden_out = model(test_data_batch)
 	
@@ -175,71 +175,71 @@ def main():
 	print("test_label.shape: ", test_label.shape)
 	print("test_name.shape: ", test_name.shape)
 
-	# train_data = torch.from_numpy(train_data)
-	# train_label = torch.from_numpy(train_label)
+	train_data = torch.from_numpy(train_data)
+	train_label = torch.from_numpy(train_label)
 
-	# test_data = torch.from_numpy(test_data)
-	# test_label = torch.from_numpy(test_label)
+	test_data = torch.from_numpy(test_data)
+	test_label = torch.from_numpy(test_label)
 
-	# lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=24).cuda()
-	# model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
+	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=24).cuda()
+	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
 
-	# criterion = nn.CrossEntropyLoss()  
+	criterion = nn.CrossEntropyLoss()  
 
-	# best_test_accuracy = 0
+	best_test_accuracy = 0
 
-	# num_step_per_epoch_train = train_data.shape[0]//FLAGS.train_batch_size
-	# num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
+	num_step_per_epoch_train = train_data.shape[0]//FLAGS.train_batch_size
+	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
-	# for epoch_num in range(maxEpoch):
+	for epoch_num in range(maxEpoch):
 
-	# 	if FLAGS.use_changed_lr:
-	# 		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 0.00001, lr_decay_epochs=10)
+		if FLAGS.use_changed_lr:
+			model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 0.00001, lr_decay_epochs=10)
 		
-	# 	lstm_action.train()
-	# 	avg_train_accuracy = 0
-	# 	permutation = torch.randperm(train_data.shape[0])
-	# 	for i in range(0, train_data.shape[0], FLAGS.train_batch_size):
-	# 		indices = permutation[i:i+FLAGS.train_batch_size]
-	# 		batch_x, batch_y, batch_name = train_data[indices], train_label[indices], train_name[indices]
-	# 		batch_x = Variable(batch_x).cuda().float()
-	# 		batch_y = Variable(batch_y).cuda().long()
-	# 		train_loss, train_accuracy = train(FLAGS.train_batch_size, batch_x, batch_y, lstm_action, model_optimizer, criterion)
+		lstm_action.train()
+		avg_train_accuracy = 0
+		permutation = torch.randperm(train_data.shape[0])
+		for i in range(0, train_data.shape[0], FLAGS.train_batch_size):
+			indices = permutation[i:i+FLAGS.train_batch_size]
+			batch_x, batch_y, batch_name = train_data[indices], train_label[indices], train_name[indices]
+			batch_x = Variable(batch_x).cuda().float()
+			batch_y = Variable(batch_y).cuda().long()
+			train_loss, train_accuracy = train(FLAGS.train_batch_size, batch_x, batch_y, lstm_action, model_optimizer, criterion)
 			
-	# 		avg_train_accuracy+=train_accuracy
+			avg_train_accuracy+=train_accuracy
 			
-	# 	final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
-	# 	print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
+		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
+		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		
 
-	# 	save_train_file = FLAGS.dataset + "_split"+ str(FLAGS.split_num) + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
-	# 	with open(save_train_file, "a") as text_file:
-	# 			print(f"{str(final_train_accuracy)}", file=text_file)
+		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
+		with open(save_train_file, "a") as text_file:
+				print(f"{str(final_train_accuracy)}", file=text_file)
 
-	# 	avg_test_accuracy = 0
-	# 	lstm_action.eval()
-	# 	for i in range(0, test_data.shape()[0],FLAGS.test_batch_size):
-	# 		test_indices = range(spaTestData.size()[0])[i: i+FLAGS.test_batch_size]
-	# 		test_batch_x, test_batch_y = spaTestData[test_indices], spaTestLabels[test_indices]
-	# 		test_batch_x = Variable(test_batch_x).cuda().float()
-	# 		test_batch_y = Variable(test_batch_y).cuda().long()
+		avg_test_accuracy = 0
+		lstm_action.eval()
+		for i in range(0, test_data.shape[0], FLAGS.test_batch_size):
+			test_indices = range(test_data.shape[0])[i: i+FLAGS.test_batch_size]
+			test_batch_x, test_batch_y = test_data[test_indices], test_label[test_indices]
+			test_batch_x = Variable(test_batch_x).cuda().float()
+			test_batch_y = Variable(test_batch_y).cuda().long()
 
-	# 		test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
+			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
            
-	# 		avg_test_accuracy+= test_accuracy
+			avg_test_accuracy+= test_accuracy
 
 			
-	# 	final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
-	# 	print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
+		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
+		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
 		
 
-	# 	save_test_file = FLAGS.dataset + "_split"+ str(FLAGS.split_num) + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
-	# 	with open(save_test_file, "a") as text_file1:
-	# 			print(f"{str(final_test_accuracy)}", file=text_file1)
+		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
+		with open(save_test_file, "a") as text_file1:
+				print(f"{str(final_test_accuracy)}", file=text_file1)
 
-	# 	if final_test_accuracy > best_test_accuracy:
-	# 		best_test_accuracy = final_test_accuracy
-	# 		print('\033[91m' + "best test accuracy is: " +str(best_test_accuracy)+ '\033[0m') 
+		if final_test_accuracy > best_test_accuracy:
+			best_test_accuracy = final_test_accuracy
+			print('\033[91m' + "best test accuracy is: " +str(best_test_accuracy)+ '\033[0m') 
 
 			
 if __name__ == '__main__':
@@ -254,8 +254,6 @@ if __name__ == '__main__':
                     	help='max number of training epoch: [100]')
     parser.add_argument('--num_segments', type=int, default=24,
                     	help='num of segments per video: [24]')
-    parser.add_argument('--split_num', type=int, default=1,
-                    	help='split number of each dataset: [1]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
