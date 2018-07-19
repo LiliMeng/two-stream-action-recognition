@@ -34,7 +34,6 @@ class Action_Att_LSTM(nn.Module):
 		self.lstm = nn.LSTM(input_size, hidden_size)
 		self.fc = nn.Linear(hidden_size, output_size)
 		self.fc_attention = nn.Linear(hidden_size, seq_len)
-		self.dropout = nn.Dropout(p=0.5)
 		self.input_size = input_size
 
 	def forward(self, input_x):
@@ -48,7 +47,6 @@ class Action_Att_LSTM(nn.Module):
 		hidden = (self.init_hidden(batch_size), self.init_hidden(batch_size))
 
 		output, hidden = self.lstm(tmp, hidden)
-		#output = self.dropout(output)
 
 		output1 = output
 		#Only the last dimension of LSTM output is used, that is output[14]=output[-1] here
@@ -181,6 +179,11 @@ def main():
 	test_data = torch.from_numpy(test_data)
 	test_label = torch.from_numpy(test_label)
 
+	substitue_with_random_noise_end = True
+
+	if substitue_with_random_noise_end:
+
+
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=15).cuda()
 	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
 
@@ -253,7 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--test_batch_size', type=int, default=30,
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=100,
-                    	help='max number of training epoch: [100]')
+                    	help='max number of training epoch: [20]')
     parser.add_argument('--num_segments', type=int, default=15,
                     	help='num of segments per video: [15]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',

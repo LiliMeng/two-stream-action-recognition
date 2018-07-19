@@ -149,7 +149,7 @@ def main():
                 ])
 
     all_frames, all_frame_names, all_labels = load_frames(
-                                                img_list = "./hmdb51_list/2class_frame_train.list",
+                                                img_list = "./hmdb51_list/2class_frame_test.list",
                                                 video_root_path = "/home/lili/Video/datasets/HMDB51_concise",
                                                 num_frames=15)
 
@@ -205,10 +205,10 @@ def main():
     all_labels = np.asarray(all_labels)
     all_features = np.asarray(all_features_list)
 
-    np.save(os.path.join(feature_dir,"train_hmdb51_logits.npy"), all_logits)
-    np.save(os.path.join(feature_dir,"train_hmdb51_names.npy"),  all_frame_names)
-    np.save(os.path.join(feature_dir,"train_hmdb51_labels.npy"), all_labels)
-    np.save(os.path.join(feature_dir,"train_hmdb51_features.npy"), all_features)
+    np.save(os.path.join(feature_dir,"test_hmdb51_logits.npy"), all_logits)
+    np.save(os.path.join(feature_dir,"test_hmdb51_names.npy"),  all_frame_names)
+    np.save(os.path.join(feature_dir,"test_hmdb51_labels.npy"), all_labels)
+    np.save(os.path.join(feature_dir,"test_hmdb51_features.npy"), all_features)
     
 
 main()
