@@ -22,9 +22,11 @@ from torch.autograd import Variable
 from torch.utils.serialization import load_lua
 from tensorboardX import SummaryWriter
 
+
 import argparse
 
 import numpy as np
+import time
 
 use_cuda = True
 
@@ -246,7 +248,8 @@ def main():
 			test_batch_x = Variable(test_batch_x).cuda().float()
 			test_batch_y = Variable(test_batch_y).cuda().long()
 
-			print("test_batch_name: ", test_batch_name)
+			print("test_batch_name[-1,:]: ", test_batch_name[-1,:])
+			raise Exception("haha")
 			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
            
 			avg_test_accuracy+= test_accuracy
