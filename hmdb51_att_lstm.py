@@ -20,7 +20,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.serialization import load_lua
-from data_utils import *
+
 import argparse
 
 import numpy as np
@@ -107,7 +107,7 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	model_input = (train_data).view(batch_size, -1, 15)
+	model_input = (train_data).view(batch_size, -1, 24)
 	model_input = model_input.cuda()
 	logits, att_weight = model.forward(model_input)
 
@@ -159,88 +159,101 @@ def main():
 
 	num_segments = FLAGS.num_segments
 
-	dataset_train = HMDB51Dataset(train_data_path)
-	test_feature = np.load("./saved_features/hmdb51_features.npy")
-	test_label = np.load("./saved_features/hmdb51_labels.npy")
+	train_data = np.load("./saved_features/train_hmdb51_features.npy")
+	train_label = np.load("./saved_features/train_hmdb51_labels.npy")
+	train_name = np.load("./saved_features/train_hmdb51_names.npy")
 
-
+	test_data = np.load("./saved_features/test_hmdb51_features.npy")
+	test_label = np.load("./saved_features/test_hmdb51_labels.npy")
+	test_name = np.load("./saved_features/test_hmdb51_names.npy")
 	
-	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=num_classes, seq_len=15).cuda()
-	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
+	print("train_data.shape: ", train_data.shape)
+	print("train_label.shape: ", train_label.shape)
+	print("train_name.shape: ", train_name.shape)
 
-	criterion = nn.CrossEntropyLoss()  
+	print("test_data.shape: ", test_data.shape)
+	print("test_label.shape: ", test_label.shape)
+	print("test_name.shape: ", test_name.shape)
 
-	best_test_accuracy = 0
+	# train_data = torch.from_numpy(train_data)
+	# train_label = torch.from_numpy(train_label)
 
-	train_batch_reminder = train_data_len %FLAGS.train_batch_size
-	test_batch_reminder = test_data_len % FLAGS.test_batch_size
+	# test_data = torch.from_numpy(test_data)
+	# test_label = torch.from_numpy(test_label)
 
-	num_step_per_epoch_train = (train_data_len-train_batch_reminder)//FLAGS.train_batch_size
-	num_step_per_epoch_test = (test_data_len-test_batch_reminder)//FLAGS.test_batch_size
+	# lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=24).cuda()
+	# model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
 
-	for epoch_num in range(maxEpoch):
+	# criterion = nn.CrossEntropyLoss()  
 
-		if FLAGS.use_changed_lr:
-			model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 0.00001, lr_decay_epochs=10)
+	# best_test_accuracy = 0
+
+	# num_step_per_epoch_train = train_data.shape[0]//FLAGS.train_batch_size
+	# num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
+
+	# for epoch_num in range(maxEpoch):
+
+	# 	if FLAGS.use_changed_lr:
+	# 		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 0.00001, lr_decay_epochs=10)
 		
-		lstm_action.train()
-		avg_train_accuracy = 0
-		permutation = torch.randperm(train_data_len)
-		for i in range(0, spaTrainData.size()[0]-train_batch_reminder, FLAGS.train_batch_size):
-			indices = permutation[i:i+FLAGS.train_batch_size]
-			batch_x, batch_y = spaTrainData[indices], spaTrainLabels[indices]
-			batch_x = Variable(batch_x).cuda().float()
-			batch_y = Variable(batch_y).cuda().long()
-			train_loss, train_accuracy = train(FLAGS.train_batch_size, batch_x, batch_y, lstm_action, model_optimizer, criterion)
+	# 	lstm_action.train()
+	# 	avg_train_accuracy = 0
+	# 	permutation = torch.randperm(train_data.shape[0])
+	# 	for i in range(0, train_data.shape[0], FLAGS.train_batch_size):
+	# 		indices = permutation[i:i+FLAGS.train_batch_size]
+	# 		batch_x, batch_y, batch_name = train_data[indices], train_label[indices], train_name[indices]
+	# 		batch_x = Variable(batch_x).cuda().float()
+	# 		batch_y = Variable(batch_y).cuda().long()
+	# 		train_loss, train_accuracy = train(FLAGS.train_batch_size, batch_x, batch_y, lstm_action, model_optimizer, criterion)
 			
-			avg_train_accuracy+=train_accuracy
+	# 		avg_train_accuracy+=train_accuracy
 			
-		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
-		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
+	# 	final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
+	# 	print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		
 
-		save_train_file = FLAGS.dataset + "_split"+ str(FLAGS.split_num) + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
-		with open(save_train_file, "a") as text_file:
-				print(f"{str(final_train_accuracy)}", file=text_file)
+	# 	save_train_file = FLAGS.dataset + "_split"+ str(FLAGS.split_num) + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
+	# 	with open(save_train_file, "a") as text_file:
+	# 			print(f"{str(final_train_accuracy)}", file=text_file)
 
-		avg_test_accuracy = 0
-		lstm_action.eval()
-		for i in range(0, spaTestData.size()[0]-test_batch_reminder,FLAGS.test_batch_size):
-			test_indices = range(spaTestData.size()[0])[i: i+FLAGS.test_batch_size]
-			test_batch_x, test_batch_y = spaTestData[test_indices], spaTestLabels[test_indices]
-			test_batch_x = Variable(test_batch_x).cuda().float()
-			test_batch_y = Variable(test_batch_y).cuda().long()
+	# 	avg_test_accuracy = 0
+	# 	lstm_action.eval()
+	# 	for i in range(0, test_data.shape()[0],FLAGS.test_batch_size):
+	# 		test_indices = range(spaTestData.size()[0])[i: i+FLAGS.test_batch_size]
+	# 		test_batch_x, test_batch_y = spaTestData[test_indices], spaTestLabels[test_indices]
+	# 		test_batch_x = Variable(test_batch_x).cuda().float()
+	# 		test_batch_y = Variable(test_batch_y).cuda().long()
 
-			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
+	# 		test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
            
-			avg_test_accuracy+= test_accuracy
+	# 		avg_test_accuracy+= test_accuracy
 
 			
-		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
-		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
+	# 	final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
+	# 	print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
 		
 
-		save_test_file = FLAGS.dataset + "_split"+ str(FLAGS.split_num) + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
-		with open(save_test_file, "a") as text_file1:
-				print(f"{str(final_test_accuracy)}", file=text_file1)
+	# 	save_test_file = FLAGS.dataset + "_split"+ str(FLAGS.split_num) + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
+	# 	with open(save_test_file, "a") as text_file1:
+	# 			print(f"{str(final_test_accuracy)}", file=text_file1)
 
-		if final_test_accuracy > best_test_accuracy:
-			best_test_accuracy = final_test_accuracy
-			print('\033[91m' + "best test accuracy is: " +str(best_test_accuracy)+ '\033[0m') 
+	# 	if final_test_accuracy > best_test_accuracy:
+	# 		best_test_accuracy = final_test_accuracy
+	# 		print('\033[91m' + "best test accuracy is: " +str(best_test_accuracy)+ '\033[0m') 
 
 			
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='HMDB51',
                         help='dataset: "UCF101", "HMDB51"')
-    parser.add_argument('--train_batch_size', type=int, default=128,
+    parser.add_argument('--train_batch_size', type=int, default=28,
                     	help='train_batch_size: [64]')
-    parser.add_argument('--test_batch_size', type=int, default=128,
+    parser.add_argument('--test_batch_size', type=int, default=30,
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=100,
                     	help='max number of training epoch: [100]')
-    parser.add_argument('--num_segments', type=int, default=15,
-                    	help='num of segments per video: [15]')
+    parser.add_argument('--num_segments', type=int, default=24,
+                    	help='num of segments per video: [24]')
     parser.add_argument('--split_num', type=int, default=1,
                     	help='split number of each dataset: [1]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',

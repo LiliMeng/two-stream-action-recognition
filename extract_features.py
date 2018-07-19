@@ -71,13 +71,13 @@ def load_frames(img_list, video_root_path, num_frames=24):
             try:
                 imgs_per_video_list.append(img)
                 imgs_names_per_video_list.append(img_name) 
-                label_per_video_list.append(label)
+                
             except:
                 print(os.path.join(path, 'image_' + str('%05d'%(index)) + '.jpg'))
                 img.close()
 
         frames_for_all_video_list.append(imgs_per_video_list)
-        labels_for_all_video_list.append(label_per_video_list)
+        labels_for_all_video_list.append(label)
         frames_names_for_all_video_list.append(imgs_names_per_video_list)
 
     return frames_for_all_video_list, frames_names_for_all_video_list, labels_for_all_video_list
@@ -116,7 +116,7 @@ def main():
                 ])
 
     all_frames, all_frame_names, all_labels = load_frames(
-                                                img_list = "./hmdb51_list/2class_frame_test.list",
+                                                img_list = "./hmdb51_list/2class_frame_train.list",
                                                 video_root_path = "/home/lili/Video/datasets/HMDB51_concise",
                                                 num_frames=24)
 
@@ -158,10 +158,10 @@ def main():
     print("all_frame_names.shape: ", all_frame_names.shape)
     print("all_labels.shape: ", all_labels.shape)
     print("all_features.shape: ", all_features.shape)
-    np.save(os.path.join(feature_dir,"test_hmdb51_logits.npy"), all_logits)
-    np.save(os.path.join(feature_dir,"test_hmdb51_names.npy"),  all_frame_names)
-    np.save(os.path.join(feature_dir,"test_hmdb51_labels.npy"), all_labels)
-    np.save(os.path.join(feature_dir,"test_hmdb51_features.npy"), all_features)
+    np.save(os.path.join(feature_dir,"train_hmdb51_logits.npy"), all_logits)
+    np.save(os.path.join(feature_dir,"train_hmdb51_names.npy"),  all_frame_names)
+    np.save(os.path.join(feature_dir,"train_hmdb51_labels.npy"), all_labels)
+    np.save(os.path.join(feature_dir,"train_hmdb51_features.npy"), all_features)
     
 
 main()
