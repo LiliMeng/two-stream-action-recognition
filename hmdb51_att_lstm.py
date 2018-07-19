@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.serialization import load_lua
+from tensorboardX import SummaryWriter
 
 import argparse
 
@@ -42,6 +43,7 @@ class Action_Att_LSTM(nn.Module):
 		# input_x shape [batch_size, 2048, 15] 
 		# before doing LSTM, we need to swap channels as the LSTM accepts [temporal, batch_size, feature_size]
 		batch_size = input_x.shape[0]
+
 		tmp=input_x.transpose(0,2).transpose(1,2)	
 
 		hidden = (self.init_hidden(batch_size), self.init_hidden(batch_size))
@@ -58,10 +60,10 @@ class Action_Att_LSTM(nn.Module):
 		weighted_output = torch.sum(output*att_weight.transpose(0, 1).unsqueeze(dim=2),
 									dim =0)
 
-		scores = self.fc(weighted_output)
+		#scores = self.fc(weighted_output)
 
 		#using the last state of LSTM output
-		#scores = self.fc(output[-1])
+		scores = self.fc(output[-1])
 		# using the average state of LSTM output
 		#scores = self.fc(output.mean(dim=0))
 		
@@ -174,18 +176,27 @@ def main():
 	print("test_name.shape: ", test_name.shape)
 
 	train_data = torch.from_numpy(train_data)
+	train_data = train_data.transpose(1,2)
 	train_label = torch.from_numpy(train_label)
 
 	test_data = torch.from_numpy(test_data)
+	test_data = test_data.transpose(1,2)
 	test_label = torch.from_numpy(test_label)
 
 	substitue_with_random_noise_end = True
 
 	if substitue_with_random_noise_end:
-
+		noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
+		print("noisy_train.shape: ", noisy_train.shape)
+		print("train_data[:,0:10,:]", train_data[:,:,0:10].shape)
+		train_data = torch.cat((train_data[:,:,0:10], noisy_train),2)
+		print(train_data.shape)
+		
+		noisy_test = torch.randn(test_data.shape[0], test_data.shape[1], 5)
+		test_data = torch.cat((test_data[:,:,0:10], noisy_test), 2)
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=15).cuda()
-	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=0.0001) 
+	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=5e-4) 
 
 	criterion = nn.CrossEntropyLoss()  
 
@@ -194,9 +205,15 @@ def main():
 	num_step_per_epoch_train = train_data.shape[0]//FLAGS.train_batch_size
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
+	
+	log_dir = os.path.join(FLAGS.hp_reg_factor, time.strftime("_%b_%d_%H_%M", time.localtime()))
+
+	if not os.path.exists(log_dir):
+		os.makedirs(log_dir)
+	writer = SummaryWriter(log_dir)
+
 	for epoch_num in range(maxEpoch):
 
-		#if FLAGS.use_changed_lr:
 		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 5e-4, lr_decay_epochs=100)
 		
 		lstm_action.train()
@@ -214,7 +231,8 @@ def main():
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
-		
+		writer.add_scalar(str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
+   
 
 		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
 		with open(save_train_file, "a") as text_file:
@@ -236,7 +254,7 @@ def main():
 			
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
-		
+		writer.add_scalar(str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
 
 		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
@@ -246,6 +264,9 @@ def main():
 			best_test_accuracy = final_test_accuracy
 			print('\033[91m' + "best test accuracy is: " +str(best_test_accuracy)+ '\033[0m') 
 
+	# export scalar data to JSON for external processing
+	writer.export_scalars_to_json("./saved_logs/all_scalars.json")
+	writer.close()
 			
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -255,7 +276,7 @@ if __name__ == '__main__':
                     	help='train_batch_size: [64]')
     parser.add_argument('--test_batch_size', type=int, default=30,
                     	help='test_batch_size: [64]')
-    parser.add_argument('--max_epoch', type=int, default=100,
+    parser.add_argument('--max_epoch', type=int, default=50,
                     	help='max number of training epoch: [20]')
     parser.add_argument('--num_segments', type=int, default=15,
                     	help='num of segments per video: [15]')
@@ -263,8 +284,8 @@ if __name__ == '__main__':
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
     					help='use regularizer', action='store_false')
-    parser.add_argument('--hp_reg_factor', type=float, default=1,
-                        help='multiply factor for regularization. [1]')
+    parser.add_argument('--hp_reg_factor', type=float, default=0,
+                        help='multiply factor for regularization. [0]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
