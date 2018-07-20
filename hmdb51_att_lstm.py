@@ -66,6 +66,7 @@ class Action_Att_LSTM(nn.Module):
 		#scores = self.fc(weighted_output)
 
 		#using the last state of LSTM output
+
 		scores = self.fc(output[-1])
 		# using the average state of LSTM output
 		#scores = self.fc(output.mean(dim=0))
@@ -155,7 +156,7 @@ def test_step(batch_size,
 
 def main():
 
-
+	torch.manual_seed(1234)
 	dataset_name = FLAGS.dataset
 
 	maxEpoch = FLAGS.max_epoch
@@ -178,12 +179,11 @@ def main():
 	test_data = test_data.transpose(1,2)
 	test_label = torch.from_numpy(test_label)
 
-	substitue_with_random_noise_end = True
-
 	transform = transforms.Compose([
 	            #transforms.Scale([224, 224]),
 	            transforms.ToTensor()])
 
+	substitue_with_random_noise_end = False
 
 	if substitue_with_random_noise_end:
 		noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
@@ -231,7 +231,7 @@ def main():
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
-		writer.add_scalar('no_att'+'reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
+		writer.add_scalar('with_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
    
 
 		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
@@ -263,7 +263,7 @@ def main():
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
-		writer.add_scalar('no_att'+'reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
+		writer.add_scalar('with_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
 
 		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
