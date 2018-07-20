@@ -298,8 +298,8 @@ if __name__ == '__main__':
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
     					help='use regularizer', action='store_false')
-    parser.add_argument('--hp_reg_factor', type=float, default=1,
-                        help='multiply factor for regularization. [1]')
+    parser.add_argument('--hp_reg_factor', type=float, default=0,
+                        help='multiply factor for regularization. [0]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
