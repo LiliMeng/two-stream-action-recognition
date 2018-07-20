@@ -63,17 +63,13 @@ class Action_Att_LSTM(nn.Module):
 		weighted_output = torch.sum(output*att_weight.transpose(0, 1).unsqueeze(dim=2),
 									dim =0)
 
-		#scores = self.fc(weighted_output)
+		scores = self.fc(weighted_output)
 
 		#using the last state of LSTM output
 
-		scores = self.fc(output[-1])
+		#scores = self.fc(output[-1])
 		# using the average state of LSTM output
 		#scores = self.fc(output.mean(dim=0))
-		
-		print(att_weight[0:5,:])
-		print("att_weight.mean(dim=0)")
-		print(att_weight.mean(dim=0))
 		return scores, att_weight
 
 	def init_hidden(self, batch_size):
@@ -116,8 +112,6 @@ def train(batch_size,
 	logits, att_weight = model.forward(model_input)
 
 	loss += criterion(logits, train_label) 
-
-	regularizer = 0
 	
 	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
@@ -136,7 +130,7 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, train_accuracy
+	return final_loss, train_accuracy, att_weight
 
 def test_step(batch_size,
 			 batch_x,
@@ -183,17 +177,25 @@ def main():
 	            #transforms.Scale([224, 224]),
 	            transforms.ToTensor()])
 
-	substitue_with_random_noise_end = False
+	replace_with_random_noise_end = False
+	replace_with_random_noise_middle = False
 
-	if substitue_with_random_noise_end:
-		noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
-		print("noisy_train.shape: ", noisy_train.shape)
-		print("train_data[:,0:10,:]", train_data[:,:,0:10].shape)
-		train_data = torch.cat((train_data[:,:,0:10], noisy_train),2)
-		print(train_data.shape)
-		
-		noisy_test = torch.randn(test_data.shape[0], test_data.shape[1], 5)
+	noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
+	noisy_test = torch.randn(test_data.shape[0], test_data.shape[1], 5)
+
+	if replace_with_random_noise_end == True:
+	
+		train_data = torch.cat((train_data[:,:,0:10], noisy_train),2)		
 		test_data = torch.cat((test_data[:,:,0:10], noisy_test), 2)
+	
+	if	replace_with_random_noise_middle == True:
+
+		train_data1 = torch.cat((train_data[:,:,0:5], noisy_train), 2)
+		train_data = torch.cat((train_data1, train_data[:,:,10:15]),2)
+
+		test_data1 = torch.cat((test_data[:,:,0:5], noisy_test), 2)
+		test_data = torch.cat((test_data1, test_data[:,:,10:15]),2)
+
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=15).cuda()
 	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=5e-4) 
@@ -224,9 +226,10 @@ def main():
 			train_batch_x, train_batch_y, train_batch_name = train_data[indices], train_label[indices], train_name[indices]
 			train_batch_x = Variable(train_batch_x).cuda().float()
 			train_batch_y = Variable(train_batch_y).cuda().long()
-			print("train_batch_name[0:5,:] ", train_batch_name[0:5])
-			train_loss, train_accuracy = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
-			
+			print("train_batch_name[0:5] ", train_batch_name[0:5])
+
+			train_loss, train_accuracy, train_att_weight = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
+			print("train_att_weight[0:5,:] ", train_att_weight[0:5,:])
 			avg_train_accuracy+=train_accuracy
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
