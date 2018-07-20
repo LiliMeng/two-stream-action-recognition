@@ -21,12 +21,13 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.serialization import load_lua
 from tensorboardX import SummaryWriter
-
+import torchvision.transforms as transforms
 
 import argparse
 
 import numpy as np
 import time
+from PIL import Image
 
 use_cuda = True
 
@@ -143,13 +144,13 @@ def test_step(batch_size,
 	
 	test_data_batch = batch_x.view(batch_size, -1, 15).cuda()
 
-	test_logits, test_model_hidden_out = model(test_data_batch)
+	test_logits, test_att_weight = model(test_data_batch)
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_accuracy
+	return test_logits, test_accuracy, test_att_weight
 
 
 def main():
@@ -168,14 +169,6 @@ def main():
 	test_data = np.load("./saved_features/test_hmdb51_features.npy")
 	test_label = np.load("./saved_features/test_hmdb51_labels.npy")
 	test_name = np.load("./saved_features/test_hmdb51_names.npy")
-	
-	print("train_data.shape: ", train_data.shape)
-	print("train_label.shape: ", train_label.shape)
-	print("train_name.shape: ", train_name.shape)
-
-	print("test_data.shape: ", test_data.shape)
-	print("test_label.shape: ", test_label.shape)
-	print("test_name.shape: ", test_name.shape)
 
 	train_data = torch.from_numpy(train_data)
 	train_data = train_data.transpose(1,2)
@@ -186,6 +179,11 @@ def main():
 	test_label = torch.from_numpy(test_label)
 
 	substitue_with_random_noise_end = True
+
+	transform = transforms.Compose([
+	            transforms.Scale([224, 224]),
+	            transforms.ToTensor()])
+
 
 	if substitue_with_random_noise_end:
 		noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
@@ -208,7 +206,7 @@ def main():
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
 	
-	log_dir = os.path.join(FLAGS.hp_reg_factor, time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('reg_factor_'+str(FLAGS.hp_reg_factor), time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -247,14 +245,21 @@ def main():
 			test_batch_x, test_batch_y, test_batch_name = test_data[test_indices], test_label[test_indices], test_name[test_indices]
 			test_batch_x = Variable(test_batch_x).cuda().float()
 			test_batch_y = Variable(test_batch_y).cuda().long()
+			
+			test_logits, test_accuracy, test_att_weight = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
 
-			print("test_batch_name[-1,:]: ", test_batch_name[-1,:])
-			raise Exception("haha")
-			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
-           
+			if i==30:
+				print("test_batch_name[0:5,:]: ", test_batch_name[0:5, :])
+				if epoch_num == maxEpoch-1:
+					displayed_imgs_names = test_batch_name[0,:]
+					displayed_imgs = [Image.open(frame_path).convert('RGB') for frame_path in displayed_imgs_names]
+
+					for j in range(len(displayed_imgs)):
+						writer.add_image('Image_'+str(j)+'_att_weight_'+ str(test_att_weight.data.cpu().numpy()[0][j]), transform(displayed_imgs[j]), epoch_num)
+
 			avg_test_accuracy+= test_accuracy
 
-			
+	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
 		writer.add_scalar(str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
@@ -279,7 +284,7 @@ if __name__ == '__main__':
                     	help='train_batch_size: [64]')
     parser.add_argument('--test_batch_size', type=int, default=30,
                     	help='test_batch_size: [64]')
-    parser.add_argument('--max_epoch', type=int, default=50,
+    parser.add_argument('--max_epoch', type=int, default=20,
                     	help='max number of training epoch: [20]')
     parser.add_argument('--num_segments', type=int, default=15,
                     	help='num of segments per video: [15]')
