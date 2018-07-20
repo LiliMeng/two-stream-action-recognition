@@ -230,6 +230,7 @@ def main():
 
 			train_loss, train_accuracy, train_att_weight = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
 			print("train_att_weight[0:5,:] ", train_att_weight[0:5,:])
+			print("train_att_weight.mean(dim=0) ",train_att_weight.mean(dim=0))
 			avg_train_accuracy+=train_accuracy
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
@@ -256,8 +257,9 @@ def main():
 				if epoch_num == maxEpoch-1:
 					displayed_imgs_names = test_batch_name[-1,:]
 					displayed_imgs = [Image.open(frame_path).convert('RGB') for frame_path in displayed_imgs_names]
-					print("test_batch_name[-1,:] ", test_batch_name[-1,:])
-					print("test_att_weight[-1,:] ", test_att_weight[-1,:])
+					print("test_batch_name[-5:,:] ", test_batch_name[-5:,:])
+					print("test_att_weight[-5:,:] ", test_att_weight[-5:,:])
+					print("test_att_weight.mean(dim=0) ",test_att_weight.mean(dim=0))
 					for j in range(len(displayed_imgs)):
 						writer.add_image('Image_'+str(j)+'_att_weight_'+ str(test_att_weight.data.cpu().numpy()[-1][j]), transform(displayed_imgs[j]), epoch_num)
 
@@ -296,8 +298,8 @@ if __name__ == '__main__':
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
     					help='use regularizer', action='store_false')
-    parser.add_argument('--hp_reg_factor', type=float, default=0,
-                        help='multiply factor for regularization. [0]')
+    parser.add_argument('--hp_reg_factor', type=float, default=1,
+                        help='multiply factor for regularization. [1]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
