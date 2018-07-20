@@ -181,7 +181,7 @@ def main():
 	substitue_with_random_noise_end = True
 
 	transform = transforms.Compose([
-	            transforms.Scale([224, 224]),
+	            #transforms.Scale([224, 224]),
 	            transforms.ToTensor()])
 
 
@@ -206,7 +206,7 @@ def main():
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
 	
-	log_dir = os.path.join('reg_factor_'+str(FLAGS.hp_reg_factor), time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./tensorboard_log', 'reg_factor_'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -231,7 +231,7 @@ def main():
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
-		writer.add_scalar(str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
+		writer.add_scalar('no_att'+'reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
    
 
 		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
@@ -249,20 +249,21 @@ def main():
 			test_logits, test_accuracy, test_att_weight = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
 
 			if i==30:
-				print("test_batch_name[0:5,:]: ", test_batch_name[0:5, :])
+				#print("test_batch_name[0:5,:]: ", test_batch_name[0:5, :])
 				if epoch_num == maxEpoch-1:
-					displayed_imgs_names = test_batch_name[0,:]
+					displayed_imgs_names = test_batch_name[-1,:]
 					displayed_imgs = [Image.open(frame_path).convert('RGB') for frame_path in displayed_imgs_names]
-
+					print("test_batch_name[-1,:] ", test_batch_name[-1,:])
+					print("test_att_weight[-1,:] ", test_att_weight[-1,:])
 					for j in range(len(displayed_imgs)):
-						writer.add_image('Image_'+str(j)+'_att_weight_'+ str(test_att_weight.data.cpu().numpy()[0][j]), transform(displayed_imgs[j]), epoch_num)
+						writer.add_image('Image_'+str(j)+'_att_weight_'+ str(test_att_weight.data.cpu().numpy()[-1][j]), transform(displayed_imgs[j]), epoch_num)
 
 			avg_test_accuracy+= test_accuracy
 
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
-		writer.add_scalar(str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
+		writer.add_scalar('no_att'+'reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
 
 		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
@@ -273,7 +274,7 @@ def main():
 			print('\033[91m' + "best test accuracy is: " +str(best_test_accuracy)+ '\033[0m') 
 
 	# export scalar data to JSON for external processing
-	writer.export_scalars_to_json("./saved_logs/all_scalars.json")
+	#writer.export_scalars_to_json("./saved_logs/all_scalars.json")
 	writer.close()
 			
 if __name__ == '__main__':
