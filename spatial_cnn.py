@@ -19,6 +19,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import dataloader.spatial_dataloader
 from utils import *
 from network import *
+from tensorboardX import SummaryWriter
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -35,6 +36,12 @@ def main():
     global arg
     arg = parser.parse_args()
     print(arg)
+
+    log_dir = os.path.join('./train_cnn_log', 'hmdb51_3_classes'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    writer = SummaryWriter(log_dir)
 
     #Prepare DataLoader
     data_loader = dataloader.spatial_dataloader(
@@ -110,8 +117,12 @@ class Spatial_CNN():
         
 
         for self.epoch in range(self.start_epoch, self.nb_epochs):
-            self.train_1epoch()
+            train_prec1, train_loss=self.train_1epoch()
             prec1, val_loss = self.validate_1epoch()
+            writer.add_scalar('train_loss', train_loss[0], self.epoch)
+            writer.add_scalar('train_accuracy', prec1, self.epoch)
+            writer.add_scalar('test_loss', val_loss[0], self.epoch)
+            writer.add_scalar('test_accuracy', prec1, self.epoch)
             is_best = prec1 > self.best_prec1
             #lr_scheduler
             self.scheduler.step(val_loss)
@@ -178,12 +189,14 @@ class Spatial_CNN():
         info = {'Epoch':[self.epoch],
                 'Batch Time':[round(batch_time.avg,3)],
                 'Data Time':[round(data_time.avg,3)],
-                'Loss':[round(losses.avg,5)],
-                'Prec@1':[round(top1.avg,4)],
-                'Prec@5':[round(top5.avg,4)],
+                'Loss':round(losses.avg,5),
+                'Prec@1':round(top1.avg,4),
+                'Prec@5':round(top5.avg,4),
                 'lr': self.optimizer.param_groups[0]['lr']
                 }
         record_info(info, 'record/spatial/rgb_train.csv','train')
+        
+        return top1.avg, losses.avg
 
     def validate_1epoch(self):
         print('==> Epoch:[{0}/{1}][validation stage]'.format(self.epoch, self.nb_epochs))
@@ -222,10 +235,11 @@ class Spatial_CNN():
 
         info = {'Epoch':[self.epoch],
                 'Batch Time':[(batch_time.avg,3)],
-                'Loss':[(video_loss,5)],
-                'Prec@1':[(video_top1,3)],
-                'Prec@5':[(video_top5,3)]}
+                'Loss':round(video_loss[0],5),
+                'Prec@1':round(video_top1,3),
+                'Prec@5':round(video_top5,3)}
         record_info(info, 'record/spatial/rgb_test.csv','test')
+        
         return video_top1, video_loss
 
     def frame2_video_level_accuracy(self):
