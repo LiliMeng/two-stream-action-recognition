@@ -63,11 +63,11 @@ class Action_Att_LSTM(nn.Module):
 		weighted_output = torch.sum(output*att_weight.transpose(0, 1).unsqueeze(dim=2),
 									dim =0)
 
-		scores = self.fc(weighted_output)
+		#scores = self.fc(weighted_output)
 
 		#using the last state of LSTM output
 
-		#scores = self.fc(output[-1])
+		scores = self.fc(output[-1])
 		# using the average state of LSTM output
 		#scores = self.fc(output.mean(dim=0))
 		return scores, att_weight
@@ -83,11 +83,17 @@ class Action_Att_LSTM(nn.Module):
 def lr_scheduler(optimizer, epoch_num, init_lr = 0.001, lr_decay_epochs=10):
 	"""Decay learning rate by a factor of 0.1 every lr_decay_epochs.
 	"""
+	using_cyclic_lr = True
+	if using_cyclic_lr == True:
+		eta_min = 5e-6
+	    eta_max = 5e-4
 
-	lr = init_lr *(0.1**(epoch_num//lr_decay_epochs))
+		lr =  eta_min + 0.5 * (eta_max - eta_min) * (1 + np.cos(epoch_num/FLAGS.max_epoch * np.pi))
+	else:
+		lr = init_lr *(0.1**(epoch_num//lr_decay_epochs))
+		if epoch_num % lr_decay_epochs == 0:
+			print("Learning rate changed to be : {}".format(lr))
 
-	if epoch_num % lr_decay_epochs == 0:
-		print("Learning rate changed to be : {}".format(lr))
 
 	for param_group in optimizer.param_groups:
 		param_group['lr'] = lr
@@ -107,7 +113,7 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	model_input = (train_data).view(batch_size, -1, 15)
+	model_input = (train_data).view(batch_size, -1, 75)
 	model_input = model_input.cuda()
 	logits, att_weight = model.forward(model_input)
 
@@ -137,7 +143,7 @@ def test_step(batch_size,
 			 batch_y,
 			 model):
 	
-	test_data_batch = batch_x.view(batch_size, -1, 15).cuda()
+	test_data_batch = batch_x.view(batch_size, -1, 75).cuda()
 
 	test_logits, test_att_weight = model(test_data_batch)
 	
@@ -196,8 +202,18 @@ def main():
 		test_data1 = torch.cat((test_data[:,:,0:5], noisy_test), 2)
 		test_data = torch.cat((test_data1, test_data[:,:,10:15]),2)
 
+	print("train_data.shape: ", train_data.shape)
+	print("train_label.shape: ", train_label.shape)
+	replicate_frames_5_times = True
 
-	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=15).cuda()
+
+	if replicate_frames_5_times == True:
+		train_data = np.repeat(train_data, 5, axis=2)
+		train_label = np.repeat(train_label, 5, axis=0)
+		test_data = np.repeat(test_data, 5, axis=2)
+		test_label = np.repeat(test_label, 5, axis=0)
+
+	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=75).cuda()
 	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=5e-4) 
 
 	criterion = nn.CrossEntropyLoss()  
@@ -235,7 +251,7 @@ def main():
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
-		writer.add_scalar('with_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
+		writer.add_scalar('no_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
    
 
 		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
@@ -268,7 +284,7 @@ def main():
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
-		writer.add_scalar('with_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
+		writer.add_scalar('no_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
 
 		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
@@ -292,8 +308,8 @@ if __name__ == '__main__':
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=20,
                     	help='max number of training epoch: [20]')
-    parser.add_argument('--num_segments', type=int, default=15,
-                    	help='num of segments per video: [15]')
+    parser.add_argument('--num_segments', type=int, default=75,
+                    	help='num of segments per video: [75]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
