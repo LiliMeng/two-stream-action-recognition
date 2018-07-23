@@ -118,9 +118,9 @@ class Spatial_CNN():
         for self.epoch in range(self.start_epoch, self.nb_epochs):
             train_prec1, train_loss=self.train_1epoch()
             prec1, val_loss = self.validate_1epoch()
-            writer.add_scalar('train_loss', train_loss[0], self.epoch)
+            writer.add_scalar('train_loss', train_loss, self.epoch)
             writer.add_scalar('train_accuracy', prec1, self.epoch)
-            writer.add_scalar('test_loss', val_loss[0], self.epoch)
+            writer.add_scalar('test_loss', val_loss, self.epoch)
             writer.add_scalar('test_accuracy', prec1, self.epoch)
             is_best = prec1 > self.best_prec1
             #lr_scheduler
@@ -239,7 +239,7 @@ class Spatial_CNN():
                 'Prec@5':round(video_top5,3)}
         record_info(info, 'record/spatial/rgb_test.csv','test')
         
-        return video_top1, video_loss
+        return video_top1, video_loss[0]
 
     def frame2_video_level_accuracy(self):
             
