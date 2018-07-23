@@ -24,7 +24,7 @@ from tensorboardX import SummaryWriter
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description='HMDB51 spatial stream on resnet101')
-parser.add_argument('--epochs', default=200, type=int, metavar='N', help='number of total epochs')
+parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs')
 parser.add_argument('--batch-size', default=32, type=int, metavar='N', help='mini-batch size (default: 25)')
 parser.add_argument('--lr', default=5e-4, type=float, metavar='LR', help='initial learning rate')
 parser.add_argument('--evaluate', dest='evaluate', action='store_false', help='evaluate model on validation set')
@@ -36,12 +36,6 @@ def main():
     global arg
     arg = parser.parse_args()
     print(arg)
-
-    log_dir = os.path.join('./train_cnn_log', 'hmdb51_3_classes'+time.strftime("_%b_%d_%H_%M", time.localtime()))
-
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    writer = SummaryWriter(log_dir)
 
     #Prepare DataLoader
     data_loader = dataloader.spatial_dataloader(
@@ -115,6 +109,11 @@ class Spatial_CNN():
         self.resume_and_evaluate()
         cudnn.benchmark = True
         
+        log_dir = os.path.join('./train_cnn_log', 'hmdb51_3_classes'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        writer = SummaryWriter(log_dir)
 
         for self.epoch in range(self.start_epoch, self.nb_epochs):
             train_prec1, train_loss=self.train_1epoch()
