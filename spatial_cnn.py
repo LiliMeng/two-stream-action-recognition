@@ -119,7 +119,7 @@ class Spatial_CNN():
             train_prec1, train_loss=self.train_1epoch()
             prec1, val_loss = self.validate_1epoch()
             writer.add_scalar('train_loss', train_loss, self.epoch)
-            writer.add_scalar('train_accuracy', prec1, self.epoch)
+            writer.add_scalar('train_accuracy', train_prec1, self.epoch)
             writer.add_scalar('test_loss', val_loss, self.epoch)
             writer.add_scalar('test_accuracy', prec1, self.epoch)
             is_best = prec1 > self.best_prec1
