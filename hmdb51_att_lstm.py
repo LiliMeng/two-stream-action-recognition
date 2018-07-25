@@ -113,7 +113,7 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	model_input = (train_data).view(batch_size, -1, 75)
+	model_input = (train_data).view(batch_size, -1, FLAGS.num_segments)
 	model_input = model_input.cuda()
 	logits, att_weight = model.forward(model_input)
 
@@ -143,7 +143,7 @@ def test_step(batch_size,
 			 batch_y,
 			 model):
 	
-	test_data_batch = batch_x.view(batch_size, -1, 75).cuda()
+	test_data_batch = batch_x.view(batch_size, -1, FLAGS.num_segments).cuda()
 
 	test_logits, test_att_weight = model(test_data_batch)
 	
@@ -213,7 +213,7 @@ def main():
 		test_data = np.repeat(test_data, 5, axis=2)
 		test_label = np.repeat(test_label, 5, axis=0)
 
-	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=75).cuda()
+	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda()
 	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=5e-4) 
 
 	criterion = nn.CrossEntropyLoss()  
