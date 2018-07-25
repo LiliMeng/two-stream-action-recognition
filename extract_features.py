@@ -52,10 +52,10 @@ def load_frames(img_list, video_root_path, num_frames=15):
         video_path = video_root_path + video_name
       
         if total_num_imgs_per_video < num_frames:
-            raise Exception("the total number of frames in this video is less than num_frames")
+            raise Exception("the total number of frames in this video is less than num_frames"+video_path)
         
         img_interval = int(total_num_imgs_per_video/num_frames)
-        img_index_list = list(range(1, total_num_imgs_per_video, img_interval))
+        img_index_list = list(range(1, total_num_imgs_per_video+1, img_interval))
         
         if len(img_index_list) > num_frames:
             img_index_list = img_index_list[0:num_frames]
@@ -149,9 +149,9 @@ def main():
                 ])
 
     all_frames, all_frame_names, all_labels = load_frames(
-                                                img_list = "./hmdb51_list/2class_frame_test.list",
+                                                img_list = "./hmdb51_list/2class_frame_train.list",
                                                 video_root_path = "/home/lili/Video/datasets/HMDB51_concise",
-                                                num_frames=15)
+                                                num_frames=22)
 
     feature_dir = "./saved_features"
 
@@ -184,6 +184,8 @@ def main():
         all_logits_list.append(logits_np)
         all_features_list.append(features_np)
 
+        print("features_np.shape: ", features_np.shape)
+
         
         per_video_logits = np.expand_dims(np.mean(logits_np,axis=0), axis=0)
         per_video_label = np.expand_dims(all_labels[i], axis=0)
@@ -205,10 +207,10 @@ def main():
     all_labels = np.asarray(all_labels)
     all_features = np.asarray(all_features_list)
 
-    np.save(os.path.join(feature_dir,"test_hmdb51_logits.npy"), all_logits)
-    np.save(os.path.join(feature_dir,"test_hmdb51_names.npy"),  all_frame_names)
-    np.save(os.path.join(feature_dir,"test_hmdb51_labels.npy"), all_labels)
-    np.save(os.path.join(feature_dir,"test_hmdb51_features.npy"), all_features)
+    np.save(os.path.join(feature_dir,"4_train_hmdb51_logits.npy"), all_logits)
+    np.save(os.path.join(feature_dir,"4_train_hmdb51_names.npy"),  all_frame_names)
+    np.save(os.path.join(feature_dir,"4_train_hmdb51_labels.npy"), all_labels)
+    np.save(os.path.join(feature_dir,"4_train_hmdb51_features.npy"), all_features)
     
 
 main()
