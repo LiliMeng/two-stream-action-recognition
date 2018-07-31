@@ -74,7 +74,6 @@ class Action_Att_LSTM(nn.Module):
 	
 	  	alpha = nn.Softmax()(att_out)
 
-	  	# N-L
 	  	context = torch.sum(features * alpha.unsqueeze(2), 1)
 	  
 	  	return context, alpha
@@ -109,7 +108,7 @@ class Action_Att_LSTM(nn.Module):
 
 		final_output =  torch.mean(torch.stack(output_list, dim=0),0)
 		
-		return output
+		return final_output
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -250,7 +249,7 @@ def main():
 	# 	test_label = np.repeat(test_label, 2, axis=0)
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda()
-	model_optimizer = torch.optim.SGD(lstm_action.parameters(), lr=1e-3) 
+	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5) 
 	#model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-3)
 	criterion = nn.CrossEntropyLoss()  
 
@@ -260,7 +259,7 @@ def main():
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
 	
-	log_dir = os.path.join('./new_tensorboard_log', 'SGD_spa_att_hidden512'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./new_tensorboard_log', 'Adam1e-5_spa_att_hidden512'+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -268,7 +267,7 @@ def main():
 
 	for epoch_num in range(maxEpoch):
 
-		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 1e-3, lr_decay_epochs=150)
+		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 1e-5, lr_decay_epochs=150)
 		
 		lstm_action.train()
 		avg_train_accuracy = 0
