@@ -127,7 +127,7 @@ def main():
     #self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=1,verbose=True)
 
-    model_resume_path ='./record/spatial/model_best.pth.tar'
+    model_resume_path ='./record/spatial_resnet50/model_best.pth.tar'
     # 2. load pretrained model
     if os.path.isfile(model_resume_path):
         print("==> loading checkpoint '{}'".format(model_resume_path))
@@ -149,7 +149,7 @@ def main():
                 ])
 
     all_frames, all_frame_names, all_labels = load_frames(
-                                                img_list = "./hmdb51_list/2class_frame_train.list",
+                                                img_list = "./hmdb51_list/new_train.list",
                                                 video_root_path = "/home/lili/Video/datasets/HMDB51_concise",
                                                 num_frames=22)
 
@@ -207,10 +207,10 @@ def main():
     all_labels = np.asarray(all_labels)
     all_features = np.asarray(all_features_list)
 
-    np.save(os.path.join(feature_dir,"4_train_hmdb51_logits.npy"), all_logits)
-    np.save(os.path.join(feature_dir,"4_train_hmdb51_names.npy"),  all_frame_names)
-    np.save(os.path.join(feature_dir,"4_train_hmdb51_labels.npy"), all_labels)
-    np.save(os.path.join(feature_dir,"4_train_hmdb51_features.npy"), all_features)
+    np.save(os.path.join(feature_dir,"51_train_hmdb51_logits.npy"), all_logits)
+    np.save(os.path.join(feature_dir,"51_train_hmdb51_names.npy"),  all_frame_names)
+    np.save(os.path.join(feature_dir,"51_train_hmdb51_labels.npy"), all_labels)
+    np.save(os.path.join(feature_dir,"51_train_hmdb51_features.npy"), all_features)
     
 
 main()

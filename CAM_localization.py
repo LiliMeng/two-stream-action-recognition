@@ -69,10 +69,10 @@ def returnCAM(feature_conv, weight_softmax, class_idx):
     print(len(class_idx), class_idx)
     for idx in class_idx:
         #print("weight_softmax[idx].shape: ", weight_softmax[idx].shape)
-        #print("feature_conv.shape: ", feature_conv.shape)
-        #print("feature_conv.reshape((nc, h*w)).shape: ", feature_conv.reshape((nc, h*w)).shape)
+        print("feature_conv.shape: ", feature_conv.shape)
+        print("feature_conv.reshape((nc, h*w)).shape: ", feature_conv.reshape((nc, h*w)).shape)
         cam = weight_softmax[idx].dot(feature_conv.reshape((nc, h*w)))
-        #print("cam.shape: ", cam.shape)
+        print("cam.shape: ", cam.shape)
         cam = cam.reshape(h, w)
         cam = cam - np.min(cam)
         cam_img = cam / np.max(cam)
@@ -80,6 +80,7 @@ def returnCAM(feature_conv, weight_softmax, class_idx):
         #print("cam_img.shape: ", cam_img.shape)
         #print("cam_img: ", cam_img)
         output_cam.append(cv2.resize(cam_img, size_upsample))
+    print("len(output_cam): ", len(output_cam))
     return output_cam
 
 
@@ -125,7 +126,7 @@ print('output CAM.jpg for the top1 prediction: %s'%idx[0])
 #img = cv2.imread('test.jpg')
 img = cv2.imread("/home/lili/Video/datasets/HMDB51_concise/frames/jump/2245/image_00034.jpg")
 height, width, _ = img.shape
-heatmap = cv2.applyColorMap(cv2.resize(CAMs[0],(width, height)), cv2.COLORMAP_JET)
+heatmap = cv2.applyColorMap(cv2.resize(CAMs[2],(width, height)), cv2.COLORMAP_JET)
 #heatmap = cv2.applyColorMap(CAMs[0], cv2.COLORMAP_JET)
 result = heatmap * 0.3 + img* 0.5
-cv2.imwrite('CAM.jpg', result)
+cv2.imwrite('CAM_wave.jpg', result)

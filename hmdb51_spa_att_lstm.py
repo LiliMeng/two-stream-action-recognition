@@ -28,54 +28,88 @@ import argparse
 import numpy as np
 import time
 from PIL import Image
-
+from network import *
 use_cuda = True
 
 class Action_Att_LSTM(nn.Module):
 	def __init__(self, input_size, hidden_size, output_size, seq_len):
 		super(Action_Att_LSTM, self).__init__()
+		#attention
+		self.att_vw = nn.Linear(49*2048, 49, bias=False)
+		self.att_hw = nn.Linear(hidden_size, 49)
+		self.att_bias = nn.Parameter(torch.zeros(49))
+		self.att_w = nn.Linear(49, 1, bias=False)
+	
 		self.hidden_size = hidden_size
 		self.lstm = nn.LSTM(input_size, hidden_size)
 		self.fc = nn.Linear(hidden_size, output_size)
 		self.fc_attention = nn.Linear(hidden_size, seq_len)
+		self.fc_out = nn.Linear(hidden_size, output_size)
+		self.fc_c0_0 = nn.Linear(2048, 1024)
+		self.fc_c0_1 = nn.Linear(1024, 512)
+		self.fc_h0_0 = nn.Linear(2048, 1024)
+		self.fc_h0_1 = nn.Linear(1024, 512)
 		self.input_size = input_size
-		
 
+		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
+		
+	def _attention_layer(self, features, hiddens, batch_size):
+	  	"""
+	  	: param features: (batch_size, 49 *2048)
+	  	: param hiddens: (batch_size, hidden_dim)
+	  	:return:
+	  	"""
+	  	#print("features.shape: ", features.shape)
+	  	features_tmp = features.contiguous().view(batch_size, -1)
+	  	#print("features_tmp.shape: ", features_tmp.shape)
+	  	
+	  	att_fea = self.att_vw(features_tmp)
+	  	#print("att_fea.shape: ", att_fea.shape)
+	  	# N-L-D
+	  	att_h = self.att_hw(hiddens)
+	  	# N-1-D
+	  	#att_full = nn.ReLU()(att_fea + att_h + self.att_bias.view(1, -1, 1))
+	  	#att_out = self.att_w(att_full).squeeze(2)
+	  	att_out = att_fea + att_h
+	
+	  	alpha = nn.Softmax()(att_out)
+
+	  	# N-L
+	  	context = torch.sum(features * alpha.unsqueeze(2), 1)
+	  
+	  	return context, alpha
+	
+	def get_start_states(self, input_x):
+
+		h0 = torch.mean(torch.mean(input_x,2),2)
+		h0 = self.fc_h0_0(h0)
+		h0 = self.fc_h0_1(h0)
+
+		c0 = torch.mean(torch.mean(input_x,2),2)
+		c0 = self.fc_c0_0(c0)
+		c0 = self.fc_c0_1(c0)
+		
+		return h0, c0
+	
 	def forward(self, input_x):
-		#output = self.batch_norm_input(input_x)
 
-		# input_x shape [batch_size, 2048, 15] 
-		# before doing LSTM, we need to swap channels as the LSTM accepts [temporal, batch_size, feature_size]
-		print("input_x.shape ", input_x.shape)
-		
 		batch_size = input_x.shape[0]
 
-		tmp=input_x.transpose(0,2).transpose(1,2)	
+		h0, c0 = self.get_start_states(input_x)
 
-		hidden = (self.init_hidden(batch_size), self.init_hidden(batch_size))
-
-		output, hidden = self.lstm(tmp, hidden)
-
-		output1 = output
-		#Only the last dimension of LSTM output is used, that is output[14]=output[-1] here
-	
-	
-		att_weight = self.fc_attention(output1[-1])
-
-		att_weight = F.softmax(att_weight, dim =1)
-
+		output_list= []
+		for step in range(22):
 		
-		weighted_output = torch.sum(output*att_weight.transpose(0, 1).unsqueeze(dim=2),
-									dim =0)
+			tmp = input_x[:,:,step,:].transpose(1,2)
 
-		scores = self.fc(weighted_output)
+			feas, alpha = self._attention_layer(tmp, h0, batch_size)
+			h0, c0 = self.lstm_cell(feas, (h0, c0))
+			output = self.fc_out(h0) 
+			output_list.append(output)
 
-		#using the last state of LSTM output
-
-		#scores = self.fc(output[-1])
-		# using the average state of LSTM output
-		#scores = self.fc(output.mean(dim=0))
-		return scores, att_weight
+		final_output =  torch.mean(torch.stack(output_list, dim=0),0)
+		
+		return output
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -118,18 +152,12 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	model_input = (train_data).view(batch_size, -1, FLAGS.num_segments)
+	model_input = (train_data).view(batch_size, -1, FLAGS.num_segments, 49)
+	
 	model_input = model_input.cuda()
-	logits, att_weight = model.forward(model_input)
+	logits = model.forward(model_input)
 
 	loss += criterion(logits, train_label) 
-	
-	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
-	
-	factor = FLAGS.hp_reg_factor
-
-	if FLAGS.use_regularizer:
-		loss += factor*att_reg
 
 	loss.backward()
 
@@ -141,22 +169,22 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, train_accuracy, att_weight
+	return final_loss, train_accuracy
 
 def test_step(batch_size,
 			 batch_x,
 			 batch_y,
 			 model):
 	
-	test_data_batch = batch_x.view(batch_size, -1, FLAGS.num_segments).cuda()
+	test_data_batch = batch_x.view(batch_size, -1, FLAGS.num_segments, 49).cuda()
 
-	test_logits, test_att_weight = model(test_data_batch)
+	test_logits = model(test_data_batch)
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_accuracy, test_att_weight
+	return test_logits, test_accuracy
 
 
 def main():
@@ -168,13 +196,13 @@ def main():
 
 	num_segments = FLAGS.num_segments
 
-	train_data = np.load("./saved_features/4_train_hmdb51_features.npy")
-	train_label = np.load("./saved_features/4_train_hmdb51_labels.npy")
-	train_name = np.load("./saved_features/4_train_hmdb51_names.npy")
+	train_data = np.load("./saved_features/spa_train_hmdb51_features.npy")
+	train_label = np.load("./saved_features/spa_train_hmdb51_labels.npy")
+	train_name = np.load("./saved_features/spa_train_hmdb51_names.npy")
 
-	test_data = np.load("./saved_features/4_test_hmdb51_features.npy")
-	test_label = np.load("./saved_features/4_test_hmdb51_labels.npy")
-	test_name = np.load("./saved_features/4_test_hmdb51_names.npy")
+	test_data = np.load("./saved_features/spa_test_hmdb51_features.npy")
+	test_label = np.load("./saved_features/spa_test_hmdb51_labels.npy")
+	test_name = np.load("./saved_features/spa_test_hmdb51_names.npy")
 
 	print("train_data.shape: ", train_data.shape)
 
@@ -191,39 +219,39 @@ def main():
 	            #transforms.Scale([224, 224]),
 	            transforms.ToTensor()])
 
-	replace_with_random_noise_end = False
-	replace_with_random_noise_middle = False
+	# replace_with_random_noise_end = False
+	# replace_with_random_noise_middle = False
 
-	noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
-	noisy_test = torch.randn(test_data.shape[0], test_data.shape[1], 5)
+	# noisy_train = torch.randn(train_data.shape[0], train_data.shape[1], 5)
+	# noisy_test = torch.randn(test_data.shape[0], test_data.shape[1], 5)
 
-	if replace_with_random_noise_end == True:
+	# if replace_with_random_noise_end == True:
 	
-		train_data = torch.cat((train_data[:,:,0:10], noisy_train),2)		
-		test_data = torch.cat((test_data[:,:,0:10], noisy_test), 2)
+	# 	train_data = torch.cat((train_data[:,:,0:10], noisy_train),2)		
+	# 	test_data = torch.cat((test_data[:,:,0:10], noisy_test), 2)
 	
-	if	replace_with_random_noise_middle == True:
+	# if	replace_with_random_noise_middle == True:
 
-		train_data1 = torch.cat((train_data[:,:,0:5], noisy_train), 2)
-		train_data = torch.cat((train_data1, train_data[:,:,10:15]),2)
+	# 	train_data1 = torch.cat((train_data[:,:,0:5], noisy_train), 2)
+	# 	train_data = torch.cat((train_data1, train_data[:,:,10:15]),2)
 
-		test_data1 = torch.cat((test_data[:,:,0:5], noisy_test), 2)
-		test_data = torch.cat((test_data1, test_data[:,:,10:15]),2)
+	# 	test_data1 = torch.cat((test_data[:,:,0:5], noisy_test), 2)
+	# 	test_data = torch.cat((test_data1, test_data[:,:,10:15]),2)
 
-	print("train_data.shape: ", train_data.shape)
-	print("train_label.shape: ", train_label.shape)
-	replicate_frames_5_times = True
+	# print("train_data.shape: ", train_data.shape)
+	# print("train_label.shape: ", train_label.shape)
+	# replicate_frames_5_times = False
 
 
-	if replicate_frames_5_times == True:
-		train_data = np.repeat(train_data, 5, axis=2)
-		train_label = np.repeat(train_label, 5, axis=0)
-		test_data = np.repeat(test_data, 5, axis=2)
-		test_label = np.repeat(test_label, 5, axis=0)
+	# if replicate_frames_5_times == True:
+	# 	train_data = np.repeat(train_data, 2, axis=2)
+	# 	train_label = np.repeat(train_label, 2, axis=0)
+	# 	test_data = np.repeat(test_data, 2, axis=2)
+	# 	test_label = np.repeat(test_label, 2, axis=0)
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda()
 	model_optimizer = torch.optim.SGD(lstm_action.parameters(), lr=1e-3) 
-
+	#model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-3)
 	criterion = nn.CrossEntropyLoss()  
 
 	best_test_accuracy = 0
@@ -232,7 +260,7 @@ def main():
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
 	
-	log_dir = os.path.join('./new_tensorboard_log', 'spa_reg_factor_'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./new_tensorboard_log', 'SGD_spa_att_hidden512'+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -250,11 +278,10 @@ def main():
 			train_batch_x, train_batch_y, train_batch_name = train_data[indices], train_label[indices], train_name[indices]
 			train_batch_x = Variable(train_batch_x).cuda().float()
 			train_batch_y = Variable(train_batch_y).cuda().long()
-			print("train_batch_name[0:5] ", train_batch_name[0:5])
+			#print("train_batch_name[0:5] ", train_batch_name[0:5])
 
-			train_loss, train_accuracy, train_att_weight = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
-			print("train_att_weight[0:5,:] ", train_att_weight[0:5,:])
-			print("train_att_weight.mean(dim=0) ",train_att_weight.mean(dim=0))
+			train_loss, train_accuracy = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
+			
 			avg_train_accuracy+=train_accuracy
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
@@ -274,18 +301,7 @@ def main():
 			test_batch_x = Variable(test_batch_x).cuda().float()
 			test_batch_y = Variable(test_batch_y).cuda().long()
 			
-			test_logits, test_accuracy, test_att_weight = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
-
-			if i==30:
-				#print("test_batch_name[0:5,:]: ", test_batch_name[0:5, :])
-				if epoch_num == maxEpoch-1:
-					displayed_imgs_names = test_batch_name[-1,:]
-					displayed_imgs = [Image.open(frame_path).convert('RGB') for frame_path in displayed_imgs_names]
-					print("test_batch_name[-5:,:] ", test_batch_name[-5:,:])
-					print("test_att_weight[-5:,:] ", test_att_weight[-5:,:])
-					print("test_att_weight.mean(dim=0) ",test_att_weight.mean(dim=0))
-					for j in range(len(displayed_imgs)):
-						writer.add_image('Image_'+str(j)+'_att_weight_'+ str(test_att_weight.data.cpu().numpy()[-1][j]), transform(displayed_imgs[j]), epoch_num)
+			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
 
 			avg_test_accuracy+= test_accuracy
 
@@ -316,7 +332,7 @@ if __name__ == '__main__':
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=200,
                     	help='max number of training epoch: [60]')
-    parser.add_argument('--num_segments', type=int, default=110,
+    parser.add_argument('--num_segments', type=int, default=22,
                     	help='num of segments per video: [110]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',
     					help='not use change learning rate by default', action='store_true')
