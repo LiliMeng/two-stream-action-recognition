@@ -36,7 +36,7 @@ class Action_Att_LSTM(nn.Module):
 		super(Action_Att_LSTM, self).__init__()
 		#attention
 		self.att_vw = nn.Linear(49*2048, 49, bias=False)
-		self.att_hw = nn.Linear(hidden_size, 49)
+		self.att_hw = nn.Linear(hidden_size, 49, bias=False)
 		self.att_bias = nn.Parameter(torch.zeros(49))
 		self.att_w = nn.Linear(49, 1, bias=False)
 	
@@ -59,23 +59,17 @@ class Action_Att_LSTM(nn.Module):
 	  	: param hiddens: (batch_size, hidden_dim)
 	  	:return:
 	  	"""
-	  	#print("features.shape: ", features.shape)
 	  	features_tmp = features.contiguous().view(batch_size, -1)
-	  	#print("features_tmp.shape: ", features_tmp.shape)
 	  	
-	  	att_fea = self.att_vw(features_tmp)
-	  	#print("att_fea.shape: ", att_fea.shape)
-	  	# N-L-D
+	  	att_fea = self.att_vw(features_tmp)  
 	  	att_h = self.att_hw(hiddens)
-	  	# N-1-D
-	  	#att_full = nn.ReLU()(att_fea + att_h + self.att_bias.view(1, -1, 1))
-	  	#att_out = self.att_w(att_full).squeeze(2)
-	  	att_out = att_fea + att_h
-	
+	  	#att_out = att_fea + att_h
+	  	att_out = att_h
+
 	  	alpha = nn.Softmax()(att_out)
 
 	  	context = torch.sum(features * alpha.unsqueeze(2), 1)
-	  
+	  	
 	  	return context, alpha
 	
 	def get_start_states(self, input_x):
@@ -93,22 +87,27 @@ class Action_Att_LSTM(nn.Module):
 	def forward(self, input_x):
 
 		batch_size = input_x.shape[0]
-
+		seq_len = input_x.shape[2]
 		h0, c0 = self.get_start_states(input_x)
 
-		output_list= []
-		for step in range(22):
-		
+		output_list = []
+		alpha_list = []
+		for step in range(seq_len):
+			
 			tmp = input_x[:,:,step,:].transpose(1,2)
-
 			feas, alpha = self._attention_layer(tmp, h0, batch_size)
 			h0, c0 = self.lstm_cell(feas, (h0, c0))
 			output = self.fc_out(h0) 
 			output_list.append(output)
-
+			alpha_list.append(alpha)
+			
 		final_output =  torch.mean(torch.stack(output_list, dim=0),0)
 		
-		return final_output
+		alpha_total = torch.stack(alpha_list).transpose(0,1)
+
+		#print("alpha_total.shape: ", alpha_total.shape)
+
+		return final_output, alpha_total
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -154,7 +153,8 @@ def train(batch_size,
 	model_input = (train_data).view(batch_size, -1, FLAGS.num_segments, 49)
 	
 	model_input = model_input.cuda()
-	logits = model.forward(model_input)
+
+	logits, spa_att_weights = model.forward(model_input)
 
 	loss += criterion(logits, train_label) 
 
@@ -168,7 +168,7 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, train_accuracy
+	return final_loss, train_accuracy, spa_att_weights
 
 def test_step(batch_size,
 			 batch_x,
@@ -177,13 +177,13 @@ def test_step(batch_size,
 	
 	test_data_batch = batch_x.view(batch_size, -1, FLAGS.num_segments, 49).cuda()
 
-	test_logits = model(test_data_batch)
+	test_logits, spa_att_weights = model(test_data_batch)
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_accuracy
+	return test_logits, test_accuracy, spa_att_weights
 
 
 def main():
@@ -259,7 +259,7 @@ def main():
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
 	
-	log_dir = os.path.join('./new_tensorboard_log', 'Adam1e-5_spa_att_hidden512'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./new_tensorboard_log', 'nobias_Adam1e-5_spa_att_hidden512_LSoftmaxonlyhidden'+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -272,6 +272,8 @@ def main():
 		lstm_action.train()
 		avg_train_accuracy = 0
 		permutation = torch.randperm(train_data.shape[0])
+		train_name_list =[]
+		train_spa_att_weights_list = []
 		for i in range(0, train_data.shape[0], FLAGS.train_batch_size):
 			indices = permutation[i:i+FLAGS.train_batch_size]
 			train_batch_x, train_batch_y, train_batch_name = train_data[indices], train_label[indices], train_name[indices]
@@ -279,37 +281,57 @@ def main():
 			train_batch_y = Variable(train_batch_y).cuda().long()
 			#print("train_batch_name[0:5] ", train_batch_name[0:5])
 
-			train_loss, train_accuracy = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
-			
+			train_loss, train_accuracy, train_spa_att_weights = train(FLAGS.train_batch_size, train_batch_x, train_batch_y, lstm_action, model_optimizer, criterion)
+			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
+			train_name_list.append(train_batch_name)
+			train_spa_att_weights_list.append(train_spa_att_weights)
 			avg_train_accuracy+=train_accuracy
 			
+		
+		train_spa_att_weights_np = torch.cat(train_spa_att_weights_list, dim=0)
+
+		print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
+		np.save("./saved_weights/train_name.npy", np.asarray(train_name_list))
+		np.save("./saved_weights/train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		writer.add_scalar('train_accuracy', final_train_accuracy, epoch_num)
    
 
-		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
+		save_train_file = "hid_only"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
 		with open(save_train_file, "a") as text_file:
 				print(f"{str(final_train_accuracy)}", file=text_file)
 
 		avg_test_accuracy = 0
 		lstm_action.eval()
+		test_name_list =[]
+		test_spa_att_weights_list = []
 		for i in range(0, test_data.shape[0], FLAGS.test_batch_size):
 			test_indices = range(test_data.shape[0])[i: i+FLAGS.test_batch_size]
 			test_batch_x, test_batch_y, test_batch_name = test_data[test_indices], test_label[test_indices], test_name[test_indices]
 			test_batch_x = Variable(test_batch_x).cuda().float()
 			test_batch_y = Variable(test_batch_y).cuda().long()
 			
-			test_logits, test_accuracy = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
 
+			test_logits, test_accuracy, test_spa_att_weights = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
+
+			test_name_list.append(test_batch_name)
+			test_spa_att_weights_list.append(test_spa_att_weights)
+			#print("test_batch_name[0:5]: ", test_batch_name[0:5])
+			#print("test_spa_att_weights[0:5] ",test_spa_att_weights[0:5])
 			avg_test_accuracy+= test_accuracy
 
+		
+		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
+		print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
+		np.save("./saved_weights/test_name.npy", np.asarray(test_name_list))
+		np.save("./saved_weights/test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
 		writer.add_scalar('test_accuracy', final_test_accuracy, epoch_num)
 
-		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
+		save_test_file = "hid_only"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
 				print(f"{str(final_test_accuracy)}", file=text_file1)
 
