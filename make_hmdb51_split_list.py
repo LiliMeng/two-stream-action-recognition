@@ -10,13 +10,13 @@ def get_train_test_split_videos():
 	f_test = open(test_list_file, 'a')
 
 	for file in sorted(os.listdir(all_splits_dir)):
-	    if file.endswith(".txt"):
+	    if file.endswith("_test_split1.txt"):
 	    	if file.endswith('_test_split1.txt'):
 	    		category_name = file.replace('_test_split1.txt', '/')
-	    	if file.endswith('_test_split2.txt'):
-	    		category_name = file.replace('_test_split2.txt', '/')
-	    	if file.endswith('_test_split3.txt'):
-	    		category_name = file.replace('_test_split3.txt', '/')
+	    	# if file.endswith('_test_split2.txt'):
+	    	# 	category_name = file.replace('_test_split2.txt', '/')
+	    	# if file.endswith('_test_split3.txt'):
+	    	# 	category_name = file.replace('_test_split3.txt', '/')
 	    	
 	    	print("category_name: ", category_name)
 	    	abs_file_path = os.path.join(all_splits_dir, file)
@@ -45,7 +45,7 @@ def get_frame_numbers(video_list_file):
 		category_dict[folder] = category_label
 		category_label+=1
 
-	list_file = "./hmdb51_list/all_new_train_file.txt"
+	list_file = "./hmdb51_list/all_new_test_file.txt"
 	f_list = open(list_file,'a')
 	lines = [line.strip() for line in open(video_list_file).readlines()]
 
@@ -58,6 +58,7 @@ def get_frame_numbers(video_list_file):
 
 def main():
 
+	#get_train_test_split_videos()
 	train_list_file = "./hmdb51_list/all_train_file.txt"
 	test_list_file = "./hmdb51_list/all_test_file.txt"
 
