@@ -154,9 +154,8 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	model_input = (train_data).view(batch_size, -1, FLAGS.num_segments, 49).cuda()
-	
-	logits, spa_att_weights = model.forward(model_input)
+	print("train_data.shape: ", train_data.shape)
+	logits, spa_att_weights = model.forward(train_data)
 
 	loss += criterion(logits, train_label) 
 
@@ -177,9 +176,8 @@ def test_step(batch_size,
 			 batch_y,
 			 model):
 	
-	test_data_batch = batch_x.view(batch_size, -1, FLAGS.num_segments, 49).cuda()
-
-	test_logits, spa_att_weights = model.forward(test_data_batch)
+	print("test_data.shape: ", batch_x.shape)
+	test_logits, spa_att_weights = model.forward(batch_x)
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
@@ -243,7 +241,7 @@ def main():
 		train_spa_att_weights_list = []
 		total_train_corrects = 0
 		for i, (train_sample,train_batch_name) in enumerate(train_data_loader):
-			train_batch_feature = train_sample['feature']
+			train_batch_feature = train_sample['feature'].transpose(1,2)
 			train_batch_label = train_sample['label']
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
@@ -253,11 +251,11 @@ def main():
 			train_name_list.append(train_batch_name)
 			train_spa_att_weights_list.append(train_spa_att_weights)
 			avg_train_accuracy+=train_accuracy
-			print("batch_train_acc: ", train_accuracy)
+			print("batch {}, train_acc: {} ".format(i, train_accuracy))
 			total_train_corrects+= train_corrects
 			
 		train_spa_att_weights_np = torch.cat(train_spa_att_weights_list, dim=0)
-		avg_train_corects = total_train_corrects *100 /3570
+		avg_train_corrects = total_train_corrects *100 /3570
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
 		#np.save("./saved_weights/hc_train_name.npy", np.asarray(train_name_list))
 		#np.save("./saved_weights/hc_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
@@ -277,7 +275,7 @@ def main():
 		test_spa_att_weights_list = []
 		total_test_corrects = 0
 		for i, (test_sample, test_batch_name) in enumerate(test_data_loader):
-			test_batch_feature = test_sample['feature']
+			test_batch_feature = test_sample['feature'].transpose(1,2)
 			test_batch_label = test_sample['label']
 			
 			test_batch_feature = Variable(test_batch_feature, volatile=True).cuda().float()
