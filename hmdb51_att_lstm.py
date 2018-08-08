@@ -56,20 +56,12 @@ class Action_Att_LSTM(nn.Module):
 		output1 = output
 		#Only the last dimension of LSTM output is used, that is output[14]=output[-1] here
 	
+		att_weight = self.fc_attention(output[-1])
 
-		att_weight = self.fc_attention(output1[-1])
 		att_weight = F.softmax(att_weight, dim =1)
 
 		weighted_output = torch.sum(output*att_weight.transpose(0, 1).unsqueeze(dim=2),
-									dim =0)
-
-		#scores = self.fc(weighted_output)
-
-		#using the last state of LSTM output
-
-		scores = self.fc(output[-1])
-		# using the average state of LSTM output
-		#scores = self.fc(output.mean(dim=0))
+									dim = 0)
 		return scores, att_weight
 
 	def init_hidden(self, batch_size):
@@ -83,10 +75,10 @@ class Action_Att_LSTM(nn.Module):
 def lr_scheduler(optimizer, epoch_num, init_lr = 0.001, lr_decay_epochs=10):
 	"""Decay learning rate by a factor of 0.1 every lr_decay_epochs.
 	"""
-	using_cyclic_lr = True
+	using_cyclic_lr = False
 	if using_cyclic_lr == True:
 		eta_min = 5e-6
-	    eta_max = 5e-4
+		eta_max = 5e-4
 
 		lr =  eta_min + 0.5 * (eta_max - eta_min) * (1 + np.cos(epoch_num/FLAGS.max_epoch * np.pi))
 	else:
@@ -117,8 +109,8 @@ def train(batch_size,
 	model_input = model_input.cuda()
 	logits, att_weight = model.forward(model_input)
 
-	loss += criterion(logits, train_label) 
-	
+	loss += criterion(logits, train_label)
+
 	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
 	factor = FLAGS.hp_reg_factor
@@ -204,7 +196,7 @@ def main():
 
 	print("train_data.shape: ", train_data.shape)
 	print("train_label.shape: ", train_label.shape)
-	replicate_frames_5_times = True
+	replicate_frames_5_times = False
 
 
 	if replicate_frames_5_times == True:
@@ -224,7 +216,7 @@ def main():
 	num_step_per_epoch_test = test_data.shape[0]//FLAGS.test_batch_size
 
 	
-	log_dir = os.path.join('./tensorboard_log', 'reg_factor_'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./4class_hmdb51_tensorboard', 'reg_factor_'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -251,7 +243,7 @@ def main():
 			
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
-		writer.add_scalar('no_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
+		writer.add_scalar('with_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_train_accuracy', final_train_accuracy, epoch_num)
    
 
 		save_train_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
@@ -263,8 +255,8 @@ def main():
 		for i in range(0, test_data.shape[0], FLAGS.test_batch_size):
 			test_indices = range(test_data.shape[0])[i: i+FLAGS.test_batch_size]
 			test_batch_x, test_batch_y, test_batch_name = test_data[test_indices], test_label[test_indices], test_name[test_indices]
-			test_batch_x = Variable(test_batch_x).cuda().float()
-			test_batch_y = Variable(test_batch_y).cuda().long()
+			test_batch_x = Variable(test_batch_x, volatile=True).cuda().float()
+			test_batch_y = Variable(test_batch_y, volatile=True).cuda().long()
 			
 			test_logits, test_accuracy, test_att_weight = test_step(FLAGS.test_batch_size, test_batch_x, test_batch_y, lstm_action)
 
@@ -284,7 +276,7 @@ def main():
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
-		writer.add_scalar('no_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
+		writer.add_scalar('with_att'+'_reg_factor_'+str(FLAGS.hp_reg_factor)+'_test_accuracy', final_test_accuracy, epoch_num)
 
 		save_test_file = FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
@@ -308,14 +300,14 @@ if __name__ == '__main__':
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=20,
                     	help='max number of training epoch: [20]')
-    parser.add_argument('--num_segments', type=int, default=75,
-                    	help='num of segments per video: [75]')
+    parser.add_argument('--num_segments', type=int, default=15,
+                    	help='num of segments per video: [15]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
     					help='use regularizer', action='store_false')
-    parser.add_argument('--hp_reg_factor', type=float, default=0,
-                        help='multiply factor for regularization. [0]')
+    parser.add_argument('--hp_reg_factor', type=float, default=1,
+                        help='multiply factor for regularization. [1]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))

@@ -6,13 +6,12 @@ train_name=np.load("./saved_weights/train_name.npy")
 train_weights = np.load("./saved_weights/train_att_weights.npy")
 
 train_name = train_name.reshape(280,22)
-print(train_name.shape)
-print(train_weights.shape)
 
-print(train_name[0])
-print(train_weights[0].shape)
-jump2290_train_name = train_name[0]
-jump2290_train_weights = train_weights[0].reshape(22,7,7)
+
+print(train_name[1])
+print(train_weights[1].shape)
+jump2290_train_name = train_name[1]
+jump2290_train_weights = train_weights[1].reshape(22,7,7)
 
 print(jump2290_train_name.shape)
 print(jump2290_train_weights.shape)

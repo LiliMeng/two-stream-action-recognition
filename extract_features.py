@@ -27,7 +27,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 class FeatureExtractor(nn.Module):
     def __init__(self, original_model):
         super(FeatureExtractor, self).__init__()
-        self.features = nn.Sequential(*list(original_model.children())[:-1])
+        self.features = nn.Sequential(*list(original_model.children())[:-2])
 
     def forward(self, x):
         x = self.features(x)
@@ -176,7 +176,10 @@ def main():
         features_before_fc = FeatureExtractor(model)
 
         logits = model(input_var)
+
         features = features_before_fc(input_var)
+
+        features = features.view(22, 2048, 49)
 
         logits_np = logits.data.cpu().numpy()
         features_np = np.squeeze(features.data.cpu().numpy())
@@ -200,17 +203,18 @@ def main():
         
         print('video {} done, total {}/{}, moving Prec@1 {:.3f} Prec@5 {:.3f}'.format(i, i+1,
                                                                   toal_num_video,top1.avg, top5.avg))
-   
-        
-    all_logits = np.asarray(all_logits_list)
-    all_frame_names = np.asarray(all_frame_names)
-    all_labels = np.asarray(all_labels)
-    all_features = np.asarray(all_features_list)
+        np.save('./spa_features/train/features_{}.npy'.format(i),features_np)
+        np.save('./spa_features/train/name_{}.npy'.format(i), all_frame_names[i])
+        np.save('./spa_features/train/label_{}.npy'.format(i), per_video_label)
+    # all_logits = np.asarray(all_logits_list)
+    # all_frame_names = np.asarray(all_frame_names)
+    # all_labels = np.asarray(all_labels)
+    # all_features = np.asarray(all_features_list)
 
-    np.save(os.path.join(feature_dir,"51_train_hmdb51_logits.npy"), all_logits)
-    np.save(os.path.join(feature_dir,"51_train_hmdb51_names.npy"),  all_frame_names)
-    np.save(os.path.join(feature_dir,"51_train_hmdb51_labels.npy"), all_labels)
-    np.save(os.path.join(feature_dir,"51_train_hmdb51_features.npy"), all_features)
+    # np.save(os.path.join(feature_dir,"51spa_train_hmdb51_logits.npy"), all_logits)
+    # np.save(os.path.join(feature_dir,"51spa_train_hmdb51_names.npy"),  all_frame_names)
+    # np.save(os.path.join(feature_dir,"51spa_train_hmdb51_labels.npy"), all_labels)
+    # np.save(os.path.join(feature_dir,"51spa_train_hmdb51_features.npy"), all_features)
     
 
 main()

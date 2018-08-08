@@ -42,19 +42,21 @@ def get_frame_numbers(video_list_file):
 	category_dict = {}
 	category_label = 0
 	for folder in sorted(os.listdir(video_root_dir)):
-		category_dict[folder] = category_label
+		category_dict[category_label] = folder
 		category_label+=1
 
-	list_file = "./hmdb51_list/all_new_test_file.txt"
-	f_list = open(list_file,'a')
-	lines = [line.strip() for line in open(video_list_file).readlines()]
+	np.save("category_dict.npy", category_dict)
 
-	for line in lines:
-		abs_video_dir = os.path.join(video_root_dir, line)
-		label = category_dict[line.split('/')[0]]
-		f_list.write(line +' '+str(label)+' '+str(len(os.listdir(abs_video_dir)))+'\n')
+	# list_file = "./hmdb51_list/all_new_test_file.txt"
+	# f_list = open(list_file,'a')
+	# lines = [line.strip() for line in open(video_list_file).readlines()]
+
+	# for line in lines:
+	# 	abs_video_dir = os.path.join(video_root_dir, line)
+	# 	label = category_dict[line.split('/')[0]]
+	# 	f_list.write(line +' '+str(label)+' '+str(len(os.listdir(abs_video_dir)))+'\n')
 		
-	f_list.close()
+	# f_list.close()
 
 def main():
 

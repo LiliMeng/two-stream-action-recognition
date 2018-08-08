@@ -63,12 +63,16 @@ class Action_Att_LSTM(nn.Module):
 	  	"""
 	  	features_tmp = features.contiguous().view(batch_size, -1)
 	  	
-	  	att_fea = self.att_vw(features_tmp)
-	  	att_fea = self.att_vw_bn(att_fea)
+	  	#att_fea = self.att_vw(features_tmp)
+	  	#att_fea = self.att_vw_bn(att_fea)
 	  	att_h = self.att_hw(hiddens)
-	  	att_h = self.att_hw_bn(att_h)
-	  	att_out = att_fea + att_h
-	  	#att_out = att_h
+	  	#att_h = self.att_hw_bn(att_h)
+	  	#att_out = att_fea + att_h 
+	  	att_out = att_h
+
+	  	#print("torch.norm(att_fea): ", torch.norm(att_fea))
+	  	print("torch.norm(att_h): ", torch.norm(att_h))
+
 
 	  	alpha = nn.Softmax()(att_out)
 
@@ -108,8 +112,6 @@ class Action_Att_LSTM(nn.Module):
 		final_output =  torch.mean(torch.stack(output_list, dim=0),0)
 		
 		alpha_total = torch.stack(alpha_list).transpose(0,1)
-
-		#print("alpha_total.shape: ", alpha_total.shape)
 
 		return final_output, alpha_total
 
@@ -222,7 +224,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_dir = os.path.join('./51HMDB51_tensorboard', 'nobias_Adam1e-3_spa_att_hiddenCurrent512_LSoftmaxonlyhidden'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./51HMDB51_tensorboard', 'nobias_SGD1e-3_spa_att_hiddenOnly512_LSoftmaxonlyhidden'+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
