@@ -141,7 +141,8 @@ def train(batch_size,
 	factor = FLAGS.hp_reg_factor
 
 	if FLAGS.use_regularizer:
-		loss += factor*att_reg 
+		regularization_loss = factor*att_reg 
+		loss += regularization_loss
 
 	loss.backward()
 
@@ -153,7 +154,7 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, train_accuracy, att_weight, corrects
+	return final_loss, regularization_loss, train_accuracy, att_weight, corrects
 
 def test_step(batch_size,
 			 batch_x,
@@ -180,7 +181,7 @@ def main():
 	num_segments = FLAGS.num_segments
 
 	# load train data
-	train_data_dir = './spa_features/train'
+	train_data_dir = '/scratch/lili/spa_features/train'
 	train_csv_file = './spa_features/train_features_list.csv'
 
 	train_data_loader = get_loader(data_dir=train_data_dir, 
@@ -189,7 +190,7 @@ def main():
 							mode ='train',
 							dataset='hmdb51')
 	# load test data
-	test_data_dir = './spa_features/test'
+	test_data_dir = '/scratch/lili/spa_features/test'
 	test_csv_file = './spa_features/test_features_list.csv'
 	test_data_loader = get_loader(data_dir = test_data_dir, 
     						csv_file = test_csv_file, 
@@ -199,14 +200,13 @@ def main():
 
 	category_dict = np.load("./category_dict.npy")
 
-	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda()
-	#model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5) 
-	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-3)
+	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda() 
+	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5)
 	criterion = nn.CrossEntropyLoss()  
 
 	best_test_accuracy = 0
 	
-	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'Adam1e-3_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'Adam1e-5_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -216,7 +216,7 @@ def main():
 	num_step_per_epoch_test = 1530/FLAGS.test_batch_size
 	for epoch_num in range(maxEpoch):
 
-		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 1e-3, lr_decay_epochs=70)
+		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 1e-5, lr_decay_epochs=150)
 		
 		lstm_action.train()
 		avg_train_accuracy = 0
@@ -224,22 +224,28 @@ def main():
 		train_name_list =[]
 		train_spa_att_weights_list = []
 		total_train_corrects = 0
+		epoch_train_loss = 0 
+		epoch_train_reg_loss = 0 
 		for i, (train_sample,train_batch_name) in enumerate(train_data_loader):
 			train_batch_feature = train_sample['feature'].transpose(1,2)
 			train_batch_label = train_sample['label']
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
 			
-			train_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
+			train_loss, train_reg_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
 			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
 			train_name_list.append(train_batch_name)
 			train_spa_att_weights_list.append(train_spa_att_weights)
 			avg_train_accuracy+=train_accuracy
+			epoch_train_loss += train_loss
+			epoch_train_reg_loss += train_reg_loss
 			print("batch {}, train_acc: {} ".format(i, train_accuracy))
 			total_train_corrects+= train_corrects
 			
 		train_spa_att_weights_np = torch.cat(train_spa_att_weights_list, dim=0)
 		avg_train_corrects = total_train_corrects *100 /3570
+		epoch_train_loss = epoch_train_loss/num_step_per_epoch_train
+		epoch_train_reg_loss = epoch_train_reg_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
 		#np.save("./saved_weights/hc_train_name.npy", np.asarray(train_name_list))
 		#np.save("./saved_weights/hc_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
@@ -247,7 +253,8 @@ def main():
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		print("epoch: "+str(epoch_num)+ " train corrects: " + str(avg_train_corrects))
 		writer.add_scalar('train_accuracy', final_train_accuracy, epoch_num)
-   
+		writer.add_scalar('train_loss', epoch_train_loss, epoch_num)
+		writer.add_scalar('train_reg_loss', epoch_train_reg_loss, epoch_num)
 
 		save_train_file = "hid_current"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
 		with open(save_train_file, "a") as text_file:
@@ -258,6 +265,7 @@ def main():
 		test_name_list =[]
 		test_spa_att_weights_list = []
 		total_test_corrects = 0
+		epoch_test_loss = 0 
 		for i, (test_sample, test_batch_name) in enumerate(test_data_loader):
 			test_batch_feature = test_sample['feature'].transpose(1,2)
 			test_batch_label = test_sample['label']
