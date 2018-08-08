@@ -174,7 +174,7 @@ def test_step(batch_size,
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_loss, test_accuracy, spa_att_weights, corrects
+	return test_logits, test_loss, test_accuracy, att_weight, corrects
 
 
 def main():
