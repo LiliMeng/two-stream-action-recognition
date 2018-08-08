@@ -55,11 +55,6 @@ class Action_Att_LSTM(nn.Module):
 
 		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
 
-		# self.conv_lstm_cell = ConvLSTMCell(input_size= (7, 7), 
-		# 								  input_dim= 2048 , 
-		# 								  hidden_dim=[512], 
-		# 								  kernel_size=(3,3),
-		# 								  bias=True)
 		self.conv_lstm = ConvLSTM(input_size=(7, 7),
                  			input_dim=2048,
                  			hidden_dim=[512],
@@ -68,61 +63,11 @@ class Action_Att_LSTM(nn.Module):
                  			batch_first=True,
                  			bias=True,
                  			return_all_layers=False)
-		# ConvLSTM(input_size=(height, width),
-  #                input_dim=channels,
-  #                hidden_dim=[64, 64, 128],
-  #                kernel_size=(3, 3),
-  #                num_layers=3,
-  #                batch_first=True
-  #                bias=True,
-  #                return_all_layers=False)
-		
-	def _attention_layer(self, features, hiddens, batch_size):
-	  	"""
-	  	: param features: (batch_size, 49 *2048)
-	  	: param hiddens: (batch_size, hidden_dim)
-	  	:return:
-	  	"""
-	  	features_tmp = features.contiguous().view(batch_size, -1)
-	  	
-	  	#att_fea = self.att_vw(features_tmp)
-	  	#att_fea = self.att_vw_bn(att_fea)
-	  	att_h = self.att_hw(hiddens)
-	  	#att_h = self.att_hw_bn(att_h)
-	  	#att_out = att_fea + att_h 
-	  	att_out = att_h
-
-	  	#print("torch.norm(att_fea): ", torch.norm(att_fea))
-	  	print("torch.norm(att_h): ", torch.norm(att_h))
-
-
-	  	alpha = nn.Softmax()(att_out)
-
-	  	context = torch.sum(features * alpha.unsqueeze(2), 1)
-	  	
-	  	return context, alpha
-	
-	def get_start_states(self, input_x):
-
-		h0 = torch.mean(torch.mean(input_x,2),2)
-		h0 = self.fc_h0_0(h0)
-		h0 = self.fc_h0_1(h0)
-
-		c0 = torch.mean(torch.mean(input_x,2),2)
-		c0 = self.fc_c0_0(c0)
-		c0 = self.fc_c0_1(c0)
-		
-		return h0, c0
 	
 	def forward(self, input_x):
 
 		batch_size = input_x.shape[0]
 		seq_len = input_x.shape[2]
-		h0, c0 = self.get_start_states(input_x)
-
-		output_list = []
-		alpha_list = []
-
 		
 		input_x = input_x.transpose(1,2).contiguous()
 	
@@ -187,10 +132,16 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	#print("train_data.shape: ", train_data.shape)
-	logits, spa_att_weights = model.forward(train_data)
+	logits, att_weight= model.forward(train_data)
 
-	loss += criterion(logits, train_label) 
+	loss += criterion(logits, train_label)
+
+	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
+	
+	factor = FLAGS.hp_reg_factor
+
+	if FLAGS.use_regularizer:
+		loss += factor*att_reg 
 
 	loss.backward()
 
@@ -202,7 +153,7 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, train_accuracy, spa_att_weights, corrects
+	return final_loss, train_accuracy, att_weight, corrects
 
 def test_step(batch_size,
 			 batch_x,
@@ -255,7 +206,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'nobias_SGD1e-3_spa_att_hiddenOnly512_LSoftmaxonlyhidden'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'Adam1e-3_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -365,7 +316,7 @@ if __name__ == '__main__':
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
     					help='use regularizer', action='store_false')
-    parser.add_argument('--hp_reg_factor', type=float, default=0,
+    parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
