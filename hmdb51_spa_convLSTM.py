@@ -169,7 +169,7 @@ def test_step(batch_size,
 	test_loss = criterion(test_logits, batch_y)
 
 	if FLAGS.use_regularizer:
-		regularization_loss = factor*att_reg 
+		regularization_loss = FLAGS.hp_reg_factor*att_reg 
 		test_loss += regularization_loss
 
 	test_accuracy = 100.0 * corrects/batch_size
