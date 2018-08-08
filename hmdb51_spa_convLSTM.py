@@ -40,7 +40,6 @@ class Action_Att_LSTM(nn.Module):
 		self.att_vw = nn.Linear(49*2048, 49, bias=False)
 		self.att_hw = nn.Linear(hidden_size, 49, bias=False)
 		self.att_bias = nn.Parameter(torch.zeros(49))
-		#self.att_w = nn.Linear(49, 1, bias=False)
 		self.att_vw_bn= nn.BatchNorm1d(49)
 		self.att_hw_bn= nn.BatchNorm1d(49)
 		self.hidden_size = hidden_size
@@ -166,9 +165,15 @@ def test_step(batch_size,
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
+	test_loss = criterion(test_logits, batch_y)
+
+	if FLAGS.use_regularizer:
+		regularization_loss = factor*att_reg 
+		test_loss += regularization_loss
+
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_accuracy, spa_att_weights, corrects
+	return test_logits, test_loss, test_accuracy, spa_att_weights, corrects
 
 
 def main():
@@ -201,12 +206,13 @@ def main():
 	category_dict = np.load("./category_dict.npy")
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda() 
-	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5)
+	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5, weight_decay=1e-5)
+	scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 	criterion = nn.CrossEntropyLoss()  
 
 	best_test_accuracy = 0
 	
-	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'Adam1e-5_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'ReduceLROnPlateau_Adam1e-5_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -216,8 +222,9 @@ def main():
 	num_step_per_epoch_test = 1530/FLAGS.test_batch_size
 	for epoch_num in range(maxEpoch):
 
-		model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 1e-5, lr_decay_epochs=150)
+		#model_optimizer = lr_scheduler(optimizer = model_optimizer, epoch_num=epoch_num, init_lr = 1e-5, lr_decay_epochs=25)
 		
+
 		lstm_action.train()
 		avg_train_accuracy = 0
 
@@ -274,7 +281,7 @@ def main():
 			test_batch_label = Variable(test_batch_label[:,0], volatile=True).cuda().long()
 			
 
-			test_logits, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action)
+			test_logits, test_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action)
 
 			test_name_list.append(test_batch_name)
 			test_spa_att_weights_list.append(test_spa_att_weights)
@@ -284,7 +291,11 @@ def main():
 
 			avg_test_accuracy+= test_accuracy
 
+			epoch_test_loss += test_loss
+
 		avg_test_corrects = total_test_corrects*100/1530
+
+		epoch_test_loss = epoch_test_loss/num_step_per_epoch_test
 
 		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
 		print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
@@ -295,6 +306,10 @@ def main():
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
 		print("epoch: "+str(epoch_num)+ " test corrects: " + str(avg_test_corrects))
 		writer.add_scalar('test_accuracy', final_test_accuracy, epoch_num)
+		writer.add_scalar('test_loss', epoch_test_loss, epoch_num)
+
+		scheduler.step(epoch_test_loss)
+
 
 		save_test_file = "hid_current"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
