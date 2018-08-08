@@ -137,10 +137,8 @@ def train(batch_size,
 
 	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
-	factor = FLAGS.hp_reg_factor
-
 	if FLAGS.use_regularizer:
-		regularization_loss = factor*att_reg 
+		regularization_loss = FLAGS.hp_reg_factor*att_reg 
 		loss += regularization_loss
 
 	loss.backward()
@@ -162,7 +160,9 @@ def test_step(batch_size,
 			 criterion):
 	
 	#print("test_data.shape: ", batch_x.shape)
-	test_logits, spa_att_weights = model.forward(batch_x)
+	test_logits, att_weight = model.forward(batch_x)
+	
+	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
