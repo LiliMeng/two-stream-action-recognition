@@ -5,4 +5,13 @@ __pycache__/
 *.pyc
 record/
 saved_features/
+4class_hmdb51_tensorboard/
+51HMDB51_tensorboard/
+CAM_result/
+Conv_51HMDB51_tensorboard/
+spa_features/
+saved_weights/
+new_tensorboard_log/
+runs/
+tensorboard_log/
 
