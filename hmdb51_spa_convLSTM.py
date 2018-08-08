@@ -293,7 +293,7 @@ def main():
 			avg_test_accuracy+= test_accuracy
 
 			epoch_test_loss += test_loss
-
+			
 		avg_test_corrects = total_test_corrects*100/1530
 
 		epoch_test_loss = epoch_test_loss/num_step_per_epoch_test
@@ -309,7 +309,8 @@ def main():
 		writer.add_scalar('test_accuracy', final_test_accuracy, epoch_num)
 		writer.add_scalar('test_loss', epoch_test_loss, epoch_num)
 
-		scheduler.step(epoch_test_loss)
+		
+		scheduler.step(epoch_test_loss.data.cpu().numpy()[0])
 
 
 		save_test_file = "hid_current"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
