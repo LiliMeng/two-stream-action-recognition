@@ -94,39 +94,49 @@ preprocess = transforms.Compose([
    normalize
 ])
 
-response = requests.get(IMG_URL)
-img_pil = Image.open(io.BytesIO(response.content))
-img_pil.save('test.jpg')
-
-img_pil = Image.open("/home/lili/Video/datasets/HMDB51_concise/frames/jump/2245/image_00034.jpg")
-img_tensor = preprocess(img_pil)
-img_variable = Variable(img_tensor.unsqueeze(0)).cuda()
-logit = net(img_variable)
-
-# download the imagenet category list
-# classes = {int(key):value for (key, value)
-#           in requests.get(LABELS_URL).json().items()}
+# response = requests.get(IMG_URL)
+# img_pil = Image.open(io.BytesIO(response.content))
+# img_pil.save('test.jpg')
 
 
-h_x = F.softmax(logit, dim=1).data.squeeze()
-probs, idx = h_x.sort(0, True)
-probs = probs.cpu().numpy()
-idx = idx.cpu().numpy()
-print("idx: ", idx)
+train_name=np.load("./saved_weights/train_name.npy")
+train_name = train_name.reshape(280,22)
+jump2290_train_name = train_name[1]
+img_indx= 1
+for img_indx in range(22):
+    img_path = jump2290_train_name[img_indx]
 
-# output the prediction
-for i in range(0, 5):
-    print('{:.3f} -> {}'.format(probs[i], idx[i]))
+    img_pil = Image.open(img_path)
+    img_tensor = preprocess(img_pil)
+    img_variable = Variable(img_tensor.unsqueeze(0)).cuda()
+    logit = net(img_variable)
 
-# generate class activation mapping for the top1 prediction
-CAMs = returnCAM(features_blobs[0], weight_softmax, idx)
+    # download the imagenet category list
+    # classes = {int(key):value for (key, value)
+    #           in requests.get(LABELS_URL).json().items()}
 
-# render the CAM and output
-print('output CAM.jpg for the top1 prediction: %s'%idx[0])
-#img = cv2.imread('test.jpg')
-img = cv2.imread("/home/lili/Video/datasets/HMDB51_concise/frames/jump/2245/image_00034.jpg")
-height, width, _ = img.shape
-heatmap = cv2.applyColorMap(cv2.resize(CAMs[2],(width, height)), cv2.COLORMAP_JET)
-#heatmap = cv2.applyColorMap(CAMs[0], cv2.COLORMAP_JET)
-result = heatmap * 0.3 + img* 0.5
-cv2.imwrite('CAM_wave.jpg', result)
+
+    h_x = F.softmax(logit, dim=1).data.squeeze()
+    probs, idx = h_x.sort(0, True)
+    probs = probs.cpu().numpy()
+    idx = idx.cpu().numpy()
+   
+    # output the prediction
+    for i in range(0, 5):
+        print('{:.3f} -> {}'.format(probs[i], idx[i]))
+
+    # generate class activation mapping for the top1 prediction
+    CAMs = returnCAM(features_blobs[0], weight_softmax, idx)
+
+    # render the CAM and output
+    print('output CAM.jpg for the top1 prediction: %s'%idx[0])
+    #img = cv2.imread('test.jpg')
+    img = cv2.imread(img_path)
+    img = cv2.resize(img, (256, 256))
+    height, width, _ = img.shape
+    heatmap = cv2.applyColorMap(CAMs[2], cv2.COLORMAP_JET)
+    #heatmap = cv2.applyColorMap(CAMs[0], cv2.COLORMAP_JET)
+    result = heatmap * 0.3 + img* 0.5
+    result_name = './CAM_result/CAM_'+img_path.split('/')[-3] + img_path.split('/')[-2] + img_path.split('/')[-1]
+    print("result_name: ", result_name)
+    cv2.imwrite(result_name, result)
