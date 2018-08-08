@@ -158,7 +158,8 @@ def train(batch_size,
 def test_step(batch_size,
 			 batch_x,
 			 batch_y,
-			 model):
+			 model,
+			 criterion):
 	
 	#print("test_data.shape: ", batch_x.shape)
 	test_logits, spa_att_weights = model.forward(batch_x)
@@ -281,7 +282,7 @@ def main():
 			test_batch_label = Variable(test_batch_label[:,0], volatile=True).cuda().long()
 			
 
-			test_logits, test_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action)
+			test_logits, test_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
 
 			test_name_list.append(test_batch_name)
 			test_spa_att_weights_list.append(test_spa_att_weights)
