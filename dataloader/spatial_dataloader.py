@@ -26,11 +26,11 @@ class spatial_dataset(Dataset):
         #     path = self.root_dir + video_name.split('_')[0]+'/separated_images/v_'+video_name+'/v_'+video_name+'_'
          
         path = self.root_dir + video_name
-        img = Image.open(os.path.join(path, 'image_' + str('%05d'%(index)) + '.jpg'))
+        img = Image.open(os.path.join(path,  str('%05d'%(index)) + '.jpg'))
         try:
             transformed_img = self.transform(img)
         except:
-            print(os.path.join(path, 'image_' + str('%05d'%(index)) + '.jpg'))
+            print(os.path.join(path,  str('%05d'%(index)) + '.jpg'))
             img.close()
 
         return transformed_img
@@ -138,10 +138,10 @@ class spatial_dataloader():
         print('==> sampling testing frames')
         self.dic_testing={}
         for video in self.test_video:
-            nb_frame = self.test_frame_count[video]-10+1
-            interval = int(nb_frame/25)
+            nb_frame = self.test_frame_count[video]-6+1
+            interval = int(nb_frame/6)
             #print("interval: ", interval)
-            for i in range(25):
+            for i in range(6):
                 frame = i*interval
                # print("frame: ", frame)
                 #frame = random.randint(1, nb_frame)
