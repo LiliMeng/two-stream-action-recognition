@@ -53,7 +53,7 @@ class Action_Att_LSTM(nn.Module):
 		self.input_size = input_size
 
 		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
-
+		self.dropout_2d = nn.Dropout2d(p=0.2)
 		self.conv_lstm = ConvLSTM(input_size=(7, 7),
                  			input_dim=2048,
                  			hidden_dim=[512],
@@ -68,10 +68,12 @@ class Action_Att_LSTM(nn.Module):
 		batch_size = input_x.shape[0]
 		seq_len = input_x.shape[2]
 		
+		input_x = self.dropout_2d(input_x)
 		input_x = input_x.transpose(1,2).contiguous()
 	
 		input_x = input_x.view(-1, 22, 2048, 7, 7)
 		
+
 		output, hidden = self.conv_lstm(input_x)
 
 		output = output[0]
@@ -145,7 +147,7 @@ def train(batch_size,
 
 	model_optimizer.step()
 
-	final_loss = loss.data[0]/batch_size
+	final_loss = loss.data[0]
 
 	corrects = (torch.max(logits, 1)[1].view(train_label.size()).data == train_label.data).sum()
 
@@ -207,13 +209,14 @@ def main():
 	category_dict = np.load("./category_dict.npy")
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda() 
-	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5, weight_decay=1e-5)
-	scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=model_optimizer, mode='min', patience=5)
+	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=FLAGS.init_lr, weight_decay=FLAGS.weight_decay)
+	scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=model_optimizer, mode='min', patience=FLAGS.lr_patience)
 	criterion = nn.CrossEntropyLoss()  
 
 	best_test_accuracy = 0
 	
-	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'ReduceLROnPlateauPatience5_Adam1e-5_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_name = 'LRPatience{}_Adam{}_decay{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -264,7 +267,7 @@ def main():
 		writer.add_scalar('train_loss', epoch_train_loss, epoch_num)
 		writer.add_scalar('train_reg_loss', epoch_train_reg_loss, epoch_num)
 
-		save_train_file = "hid_current"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_train_acc.txt"
+		save_train_file = log_name+"_train_acc.txt"
 		with open(save_train_file, "a") as text_file:
 				print(f"{str(final_train_accuracy)}", file=text_file)
 
@@ -313,7 +316,7 @@ def main():
 		scheduler.step(epoch_test_loss.data.cpu().numpy()[0])
 		writer.add_scalar('learning_rate', model_optimizer.param_groups[0]['lr'])
 
-		save_test_file = "hid_current"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
+		save_test_file = log_name+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
 				print(f"{str(final_test_accuracy)}", file=text_file1)
 
@@ -343,6 +346,12 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
+    parser.add_argument('--init_lr', type=float, default=1e-5,
+                        help='initial learning rate. [1e-5]')
+    parser.add_argument('--weight_decay', type=float, default=1e-3,
+                        help='weight decay. [1e-3]')
+    parser.add_argument('--lr_patience', type=int, default=3,
+                    	help='reduce learning rate on plateau patience [3]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
