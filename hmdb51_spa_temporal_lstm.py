@@ -376,8 +376,8 @@ if __name__ == '__main__':
                         help='weight decay. [1e-3]')
     parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
-    parser.add_argument('--dropout_ratio', type=float, default=0.2,
-                        help='2d dropout raito. [0.2]')
+    parser.add_argument('--dropout_ratio', type=float, default=0.3,
+                        help='2d dropout raito. [0.3]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
