@@ -134,7 +134,7 @@ class Action_Att_LSTM(nn.Module):
 		temporal_output = self.fc(temporal_weighted_output)
 		
 
-		return temporal_output, alpha_total
+		return temporal_output, alpha_total, temporal_att_weight
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -156,11 +156,11 @@ def train_step(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	logits, att_weight= model.forward(train_data)
+	logits, spa_att_weight, temporal_att_weight= model.forward(train_data)
 
 	loss += criterion(logits, train_label)
 
-	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
+	att_reg = F.relu(temporal_att_weight[:, :-2] * temporal_att_weight[:, 2:] - temporal_att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
 	if FLAGS.use_regularizer:
 		regularization_loss = FLAGS.hp_reg_factor*att_reg 
@@ -176,7 +176,7 @@ def train_step(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, regularization_loss, train_accuracy, att_weight, corrects
+	return final_loss, regularization_loss, train_accuracy, temporal_att_weight, corrects
 
 def test_step(batch_size,
 			 batch_x,
@@ -185,9 +185,9 @@ def test_step(batch_size,
 			 criterion):
 	
 	#print("test_data.shape: ", batch_x.shape)
-	test_logits, att_weight = model.forward(batch_x)
+	test_logits, spa_att_weight, temporal_att_weight = model.forward(batch_x)
 	
-	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
+	att_reg = F.relu(temporal_att_weight[:, :-2] * temporal_att_weight[:, 2:] - temporal_att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
 	corrects = (torch.max(test_logits, 1)[1].view(batch_y.size()).data == batch_y.data).sum()
 
@@ -199,7 +199,7 @@ def test_step(batch_size,
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_loss, test_accuracy, att_weight, corrects
+	return test_logits, test_loss, test_accuracy, temporal_att_weight, corrects
 
 
 
