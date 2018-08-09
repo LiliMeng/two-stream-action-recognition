@@ -294,9 +294,6 @@ def main():
 
 			epoch_test_loss += test_loss
 
-			if i > 1:
-				break
-			
 		avg_test_corrects = total_test_corrects*100/1530
 
 		epoch_test_loss = epoch_test_loss/num_step_per_epoch_test
