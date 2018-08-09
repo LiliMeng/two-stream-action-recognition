@@ -53,7 +53,7 @@ class Action_Att_LSTM(nn.Module):
 		self.input_size = input_size
 
 		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
-		self.dropout_2d = nn.Dropout2d(p=0.2)
+		self.dropout_2d = nn.Dropout2d(p=FLAGS.dropout_ratio)
 		self.conv_lstm = ConvLSTM(input_size=(7, 7),
                  			input_dim=2048,
                  			hidden_dim=[512],
@@ -215,7 +215,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_name = 'LRPatience{}_Adam{}_decay{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	log_name = 'LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
 	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
 
 	if not os.path.exists(log_dir):
@@ -348,10 +348,12 @@ if __name__ == '__main__':
                         help='multiply factor for regularization. [0]')
     parser.add_argument('--init_lr', type=float, default=1e-5,
                         help='initial learning rate. [1e-5]')
-    parser.add_argument('--weight_decay', type=float, default=1e-3,
-                        help='weight decay. [1e-3]')
+    parser.add_argument('--weight_decay', type=float, default=1e-4,
+                        help='weight decay. [1e-4]')
     parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
+    parser.add_argument('--dropout_ratio', type=float, default=0.3,
+                        help='2d dropout raito. [0.3]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
