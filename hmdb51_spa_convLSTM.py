@@ -208,12 +208,12 @@ def main():
 
 	lstm_action = Action_Att_LSTM(input_size=2048, hidden_size=512, output_size=51, seq_len=FLAGS.num_segments).cuda() 
 	model_optimizer = torch.optim.Adam(lstm_action.parameters(), lr=1e-5, weight_decay=1e-5)
-	scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
+	scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=model_optimizer, mode='min', patience=5)
 	criterion = nn.CrossEntropyLoss()  
 
 	best_test_accuracy = 0
 	
-	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'ReduceLROnPlateau_Adam1e-5_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
+	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', 'ReduceLROnPlateauPatience5_Adam1e-5_Temporal_ConvLSTM_hidden512_regFactor'+str(FLAGS.hp_reg_factor)+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -293,6 +293,9 @@ def main():
 			avg_test_accuracy+= test_accuracy
 
 			epoch_test_loss += test_loss
+
+			if i > 1:
+				break
 			
 		avg_test_corrects = total_test_corrects*100/1530
 
@@ -311,7 +314,7 @@ def main():
 
 		
 		scheduler.step(epoch_test_loss.data.cpu().numpy()[0])
-
+		writer.add_scalar('learning_rate', model_optimizer.param_groups[0]['lr'])
 
 		save_test_file = "hid_current"+FLAGS.dataset  + "_numSegments"+str(FLAGS.num_segments)+"_regFactor_"+str(FLAGS.hp_reg_factor)+"_test_acc.txt"
 		with open(save_test_file, "a") as text_file1:
