@@ -40,9 +40,11 @@ class Action_Att_LSTM(nn.Module):
 		self.att_vw = nn.Linear(49*2048, 49, bias=False)
 		self.att_hw = nn.Linear(hidden_size, 49, bias=False)
 		self.att_bias = nn.Parameter(torch.zeros(49))
+		#self.att_w = nn.Linear(49, 1, bias=False)
 		self.att_vw_bn= nn.BatchNorm1d(49)
 		self.att_hw_bn= nn.BatchNorm1d(49)
 		self.hidden_size = hidden_size
+		self.lstm = nn.LSTM(input_size, hidden_size)
 		self.fc = nn.Linear(hidden_size, output_size)
 		self.fc_attention = nn.Linear(hidden_size, seq_len)
 		self.fc_out = nn.Linear(hidden_size, output_size)
@@ -54,7 +56,7 @@ class Action_Att_LSTM(nn.Module):
 
 		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
 		self.dropout_2d = nn.Dropout2d(p=FLAGS.dropout_ratio)
-		self.conv_lstm = ConvLSTM(input_size=(7, 7),
+		self.conv_lstm = ConvLSTM(input_size=(1, 1),
                  			input_dim=2048,
                  			hidden_dim=[512],
                  			kernel_size=(3, 3),
@@ -62,37 +64,77 @@ class Action_Att_LSTM(nn.Module):
                  			batch_first=True,
                  			bias=True,
                  			return_all_layers=False)
+		
+	def _attention_layer(self, features, hiddens, batch_size):
+	  	"""
+	  	: param features: (batch_size, 49 *2048)
+	  	: param hiddens: (batch_size, hidden_dim)
+	  	:return:
+	  	"""
+	  	features_tmp = features.contiguous().view(batch_size, -1)
+	  	
+	  	att_fea = self.att_vw(features_tmp)
+	  	att_fea = self.att_vw_bn(att_fea)
+	  	att_h = self.att_hw(hiddens)
+	  	att_h = self.att_hw_bn(att_h)
+	  	att_out = att_fea + att_h 
+	  	att_out = att_h
+	  
+	  	alpha = nn.Softmax()(att_out)
+
+	  	context = torch.sum(features * alpha.unsqueeze(2), 1)
+	  	
+	  	return context, alpha
+	
+	def get_start_states(self, input_x):
+
+		h0 = torch.mean(torch.mean(input_x,2),2)
+		h0 = self.fc_h0_0(h0)
+		h0 = self.fc_h0_1(h0)
+
+		c0 = torch.mean(torch.mean(input_x,2),2)
+		c0 = self.fc_c0_0(c0)
+		c0 = self.fc_c0_1(c0)
+		
+		return h0, c0
 	
 	def forward(self, input_x):
 
 		batch_size = input_x.shape[0]
 		seq_len = input_x.shape[2]
-		
+
+		h0, c0 = self.get_start_states(input_x)
 		input_x = self.dropout_2d(input_x)
-		input_x = input_x.transpose(1,2).contiguous()
-	
-		input_x = input_x.view(-1, 22, 2048, 7, 7)
-		
-		print(input_x.shape)
-		
-		output, hidden = self.conv_lstm(input_x)
+		output_list = []
+		alpha_list = []
+		spa_att_feature_list = []
+		for step in range(seq_len):
+			
+			tmp = input_x[:,:,step,:].transpose(1,2)
+			spa_att_feature, alpha = self._attention_layer(tmp, h0, batch_size)
+			spa_att_feature_list.append(spa_att_feature)
+			alpha_list.append(alpha)
 
-		output = output[0]
-		
-		output = torch.mean(output,dim=4)
-		output = torch.mean(output,dim=3).transpose(1,2)
-		
+		alpha_total = torch.stack(alpha_list).transpose(0,1)
+		spa_att_features = torch.stack(spa_att_feature_list, dim=0).transpose(0,1)
+			
+		spa_att_features = spa_att_features.contiguous().view(-1, 22, 2048,1, 1)
+		output, hidden = self.conv_lstm(spa_att_features)
 
-		att_weight = self.fc_attention(output[:,:,-1])
+
+		output = torch.squeeze(output[0]).transpose(1,2)
+
+		temporal_att_weight = self.fc_attention(output[:,:,-1])
 		
-		att_weight = F.softmax(att_weight, dim =1)
+		temporal_att_weight = F.softmax(temporal_att_weight, dim =1)
 		
-		weighted_output = torch.sum(output.transpose(1,2)*att_weight.unsqueeze(dim=2),
+		temporal_weighted_output = torch.sum(output.transpose(1,2)*temporal_att_weight.unsqueeze(dim=2),
 									dim =1)
 		
-		final_output = self.fc(weighted_output)
+		temporal_output = self.fc(temporal_weighted_output)
 		
-		return final_output, att_weight
+
+		return temporal_output, alpha_total
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -102,28 +144,7 @@ class Action_Att_LSTM(nn.Module):
 			return result
 
 
-def lr_scheduler(optimizer, epoch_num, init_lr = 0.001, lr_decay_epochs=10):
-	"""Decay learning rate by a factor of 0.1 every lr_decay_epochs.
-	"""
-	using_cyclic_lr = False
-	if using_cyclic_lr == True:
-		eta_min = 5e-8
-		eta_max = 5e-5
-
-		lr =  eta_min + 0.5 * (eta_max - eta_min) * (1 + np.cos(epoch_num/FLAGS.max_epoch * np.pi))
-	else:
-		lr = init_lr *(0.1**(epoch_num//lr_decay_epochs))
-		if epoch_num % lr_decay_epochs == 0:
-			print("Learning rate changed to be : {}".format(lr))
-
-
-	for param_group in optimizer.param_groups:
-		param_group['lr'] = lr
-
-	return optimizer
-
-
-def train(batch_size,
+def train_step(batch_size,
 		  train_data,
 		  train_label,
 		  model,
@@ -181,6 +202,7 @@ def test_step(batch_size,
 	return test_logits, test_loss, test_accuracy, att_weight, corrects
 
 
+
 def main():
 
 	torch.manual_seed(1234)
@@ -218,7 +240,7 @@ def main():
 	best_test_accuracy = 0
 	
 	log_name = 'LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
-	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
+	log_dir = os.path.join('./Spa_temporal_51HMDB51_tensorboard', log_name)
 
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -245,7 +267,7 @@ def main():
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
 			
-			train_loss, train_reg_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
+			train_loss, train_reg_loss, train_accuracy, train_spa_att_weights, train_corrects = train_step(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
 			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
 			train_name_list.append(train_batch_name)
 			train_spa_att_weights_list.append(train_spa_att_weights)
@@ -350,12 +372,12 @@ if __name__ == '__main__':
                         help='multiply factor for regularization. [0]')
     parser.add_argument('--init_lr', type=float, default=1e-5,
                         help='initial learning rate. [1e-5]')
-    parser.add_argument('--weight_decay', type=float, default=1e-4,
-                        help='weight decay. [1e-4]')
+    parser.add_argument('--weight_decay', type=float, default=1e-3,
+                        help='weight decay. [1e-3]')
     parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
-    parser.add_argument('--dropout_ratio', type=float, default=0.3,
-                        help='2d dropout raito. [0.3]')
+    parser.add_argument('--dropout_ratio', type=float, default=0.2,
+                        help='2d dropout raito. [0.2]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
