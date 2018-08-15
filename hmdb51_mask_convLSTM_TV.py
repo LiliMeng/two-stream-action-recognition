@@ -204,7 +204,7 @@ def test_step(batch_size,
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return mask, test_logits, test_loss, test_reg_loss, tv_loss, test_accuracy, att_weight, corrects
+	return mask, test_logits, test_loss, test_reg_loss, tv_loss, test_accuracy, mask, corrects
 
 
 def main():
@@ -243,7 +243,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_name = 'mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	log_name = 'TV_reg_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
 	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
 
 	if not os.path.exists(log_dir):
@@ -289,8 +289,8 @@ def main():
 		epoch_train_reg_loss = epoch_train_reg_loss/num_step_per_epoch_train
 		epoch_train_tv_loss = epoch_train_tv_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
-		np.save("./saved_weights/hc_train_name.npy", np.asarray(train_name_list))
-		np.save("./saved_weights/hc_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
+		np.save("./saved_weights/TV_train_name.npy", np.asarray(train_name_list))
+		np.save("./saved_weights/TV_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		print("epoch: "+str(epoch_num)+ " train corrects: " + str(avg_train_corrects))
@@ -342,8 +342,8 @@ def main():
 
 		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
 		#print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
-		#np.save("./saved_weights/hc_test_name.npy", np.asarray(test_name_list))
-		#np.save("./saved_weights/hc_test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
+		np.save("./saved_weights/hc_test_name.npy", np.asarray(test_name_list))
+		np.save("./saved_weights/hc_test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
