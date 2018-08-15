@@ -198,8 +198,8 @@ def test_step(batch_size,
 	test_loss = criterion(test_logits, batch_y)
 
 	if FLAGS.use_regularizer:
-		regularization_loss = FLAGS.hp_reg_factor*att_reg 
-		test_loss += regularization_loss
+		test_reg_loss = FLAGS.hp_reg_factor*att_reg 
+		test_loss += test_reg_loss
 		test_loss += tv_loss
 
 	test_accuracy = 100.0 * corrects/batch_size
@@ -310,7 +310,7 @@ def main():
 		total_test_corrects = 0
 		epoch_test_loss = 0
 		epoch_test_reg_loss =0
-		epcoh_test_tv_loss =0 
+		epoch_test_tv_loss =0 
 		for i, (test_sample, test_batch_name) in enumerate(test_data_loader):
 			test_batch_feature = test_sample['feature'].transpose(1,2)
 			test_batch_label = test_sample['label']
@@ -332,7 +332,7 @@ def main():
 			epoch_test_loss += test_loss
 
 			epoch_test_reg_loss += test_reg_loss
-			epoch_test_tv_loss += teest_tv_loss
+			epoch_test_tv_loss += test_tv_loss
 
 		avg_test_corrects = total_test_corrects*100/1530
 
