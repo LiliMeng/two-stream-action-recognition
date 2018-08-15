@@ -93,11 +93,11 @@ class Action_Att_LSTM(nn.Module):
 		input_x = input_x.view(-1, 22, 2048, 7, 7)
 
 		# calculate total variation regularization (anisotropic version)
-        # https://www.wikiwand.com/en/Total_variation_denoising
-        diff_i = torch.sum(torch.abs(mask[:, :, :, :, 1:] - mask[:, :, :, :-1]))
-        diff_j = torch.sum(torch.abs(mask[:, :, :, 1:, :] - mask[:, :, :-1, :]))
+		# https://www.wikiwand.com/en/Total_variation_denoising
+		diff_i = torch.sum(torch.abs(mask[:, :, :, :, 1:] - mask[:, :, :, :, :-1]))
+		diff_j = torch.sum(torch.abs(mask[:, :, :, 1:, :] - mask[:, :, :, :-1, :]))
 
-        tv_loss = FLAGS.tv_reg_factor*(diff_i + diff_j)
+		tv_loss = FLAGS.tv_reg_factor*(diff_i + diff_j)
 		mask_input_x = mask * input_x
 		output, hidden = self.conv_lstm(mask_input_x)
 
