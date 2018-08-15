@@ -84,11 +84,12 @@ class Action_Att_LSTM(nn.Module):
 	
 		input_x = input_x.view(-1, 2048, 7, 7)
 		
-		print(input_x.shape)
+		#print(input_x.shape)
 		
 		mask = self.mask_conv(input_x)
 		#print("mask.shape: ", mask.shape)
 		mask = mask.view(-1, 22, 1, 7, 7)
+
 		input_x = input_x.view(-1, 22, 2048, 7, 7)
 
 		mask_input_x = mask * input_x
@@ -109,7 +110,7 @@ class Action_Att_LSTM(nn.Module):
 		
 		final_output = self.fc(weighted_output)
 		
-		return final_output, att_weight
+		return final_output, att_weight, mask
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -152,7 +153,7 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	logits, att_weight= model.forward(train_data)
+	logits, att_weight, mask= model.forward(train_data)
 
 	loss += criterion(logits, train_label)
 
@@ -172,7 +173,7 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return final_loss, regularization_loss, train_accuracy, att_weight, corrects
+	return mask, final_loss, regularization_loss, train_accuracy, att_weight, corrects
 
 def test_step(batch_size,
 			 batch_x,
@@ -181,7 +182,7 @@ def test_step(batch_size,
 			 criterion):
 	
 	#print("test_data.shape: ", batch_x.shape)
-	test_logits, att_weight = model.forward(batch_x)
+	test_logits, att_weight, mask = model.forward(batch_x)
 	
 	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
@@ -195,7 +196,7 @@ def test_step(batch_size,
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return test_logits, test_loss, test_accuracy, att_weight, corrects
+	return mask, test_logits, test_loss, test_accuracy, att_weight, corrects
 
 
 def main():
@@ -262,10 +263,10 @@ def main():
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
 			
-			train_loss, train_reg_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
+			mask, train_loss, train_reg_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
 			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
 			train_name_list.append(train_batch_name)
-			train_spa_att_weights_list.append(train_spa_att_weights)
+			train_spa_att_weights_list.append(mask)
 			avg_train_accuracy+=train_accuracy
 			epoch_train_loss += train_loss
 			epoch_train_reg_loss += train_reg_loss
@@ -277,8 +278,8 @@ def main():
 		epoch_train_loss = epoch_train_loss/num_step_per_epoch_train
 		epoch_train_reg_loss = epoch_train_reg_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
-		#np.save("./saved_weights/hc_train_name.npy", np.asarray(train_name_list))
-		#np.save("./saved_weights/hc_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
+		np.save("./saved_weights/hc_train_name.npy", np.asarray(train_name_list))
+		np.save("./saved_weights/hc_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		print("epoch: "+str(epoch_num)+ " train corrects: " + str(avg_train_corrects))
@@ -304,7 +305,7 @@ def main():
 			test_batch_label = Variable(test_batch_label[:,0], volatile=True).cuda().long()
 			
 
-			test_logits, test_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
+			mask, test_logits, test_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
 
 			test_name_list.append(test_batch_name)
 			test_spa_att_weights_list.append(test_spa_att_weights)
@@ -365,14 +366,16 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
+    parser.add_argument('--tv_reg_factor', type=float, default=1,
+                        help='multiply factor for total variation regularization. [0]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
-                        help='initial learning rate. [1e-4]')
+                        help='initial learning rate. [1e-5]')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
-                        help='weight decay. [1e-4]')
+                        help='weight decay. [1e-5]')
     parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
-    parser.add_argument('--dropout_ratio', type=float, default=0.2,
-                        help='2d dropout raito. [0.2]')
+    parser.add_argument('--dropout_ratio', type=float, default=0.3,
+                        help='2d dropout raito. [0.3]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
