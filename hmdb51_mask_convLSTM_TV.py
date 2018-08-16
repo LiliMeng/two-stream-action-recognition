@@ -299,8 +299,8 @@ def main():
 		epoch_train_tv_loss = epoch_train_tv_loss/num_step_per_epoch_train
 		epoch_train_contrast_loss = epoch_train_contrast_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
-		np.save("./saved_weights/TV_train_name.npy", np.asarray(train_name_list))
-		np.save("./saved_weights/TV_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
+		np.save("./saved_weights/contrast_TV_train_name.npy", np.asarray(train_name_list))
+		np.save("./saved_weights/contrast_TV_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		print("epoch: "+str(epoch_num)+ " train corrects: " + str(avg_train_corrects))
@@ -355,8 +355,8 @@ def main():
 		epoch_test_contrast_loss = epoch_test_contrast_loss/num_step_per_epoch_test
 		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
 		#print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
-		np.save("./saved_weights/hc_test_name.npy", np.asarray(test_name_list))
-		np.save("./saved_weights/hc_test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
+		np.save("./saved_weights/contrast_hc_test_name.npy", np.asarray(test_name_list))
+		np.save("./saved_weights/contrast_hc_test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
@@ -402,7 +402,7 @@ if __name__ == '__main__':
                         help='multiply factor for regularization. [0]')
     parser.add_argument('--tv_reg_factor', type=float, default=0.001,
                         help='multiply factor for total variation regularization. [0.005]')
-    parser.add_argument('--constrast_reg_factor', type=float, default=0.001,
+    parser.add_argument('--constrast_reg_factor', type=float, default=0.005,
                         help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
                         help='initial learning rate. [1e-5]')
