@@ -98,6 +98,11 @@ class Action_Att_LSTM(nn.Module):
 		diff_j = torch.sum(torch.abs(mask[:, :, :, 1:, :] - mask[:, :, :, :-1, :]))
 
 		tv_loss = FLAGS.tv_reg_factor*(diff_i + diff_j)
+
+		mask_A = (mask > 0.5).type( torch.cuda.FloatTensor )
+		mask_B = (mask < 0.5).type( torch.cuda.FloatTensor )
+		contrast_loss = -(mask * mask_A).mean(0).sum() * FLAGS.constrast_reg_factor* 0.5 + (mask * mask_B).mean(0).sum() * FLAGS.constrast_reg_factor * 0.5
+
 		mask_input_x = mask * input_x
 		output, hidden = self.conv_lstm(mask_input_x)
 
@@ -116,7 +121,7 @@ class Action_Att_LSTM(nn.Module):
 		
 		final_output = self.fc(weighted_output)
 		
-		return final_output, att_weight, mask, tv_loss
+		return final_output, att_weight, mask, tv_loss, contrast_loss
 
 	def init_hidden(self, batch_size):
 		result = Variable(torch.zeros(1, batch_size, self.hidden_size))
@@ -159,7 +164,7 @@ def train(batch_size,
 	loss = 0
 	model_optimizer.zero_grad()
 
-	logits, att_weight, mask, tv_loss= model.forward(train_data)
+	logits, att_weight, mask, tv_loss, contrast_loss = model.forward(train_data)
 
 	loss += criterion(logits, train_label)
 
@@ -169,6 +174,7 @@ def train(batch_size,
 		regularization_loss = FLAGS.hp_reg_factor*att_reg 
 		loss += regularization_loss
 		loss += tv_loss
+		loss += contrast_loss
 
 	loss.backward()
 
@@ -180,7 +186,7 @@ def train(batch_size,
 
 	train_accuracy = 100.0 * corrects/batch_size
 
-	return mask, final_loss, regularization_loss, tv_loss, train_accuracy, att_weight, corrects
+	return mask, final_loss, regularization_loss, tv_loss, contrast_loss, train_accuracy, att_weight, corrects
 
 def test_step(batch_size,
 			 batch_x,
@@ -189,7 +195,7 @@ def test_step(batch_size,
 			 criterion):
 	
 	#print("test_data.shape: ", batch_x.shape)
-	test_logits, att_weight, mask, tv_loss = model.forward(batch_x)
+	test_logits, att_weight, mask, tv_loss, contrast_loss = model.forward(batch_x)
 	
 	att_reg = F.relu(att_weight[:, :-2] * att_weight[:, 2:] - att_weight[:, 1:-1].pow(2)).sqrt().mean()
 	
@@ -201,10 +207,11 @@ def test_step(batch_size,
 		test_reg_loss = FLAGS.hp_reg_factor*att_reg 
 		test_loss += test_reg_loss
 		test_loss += tv_loss
+		test_loss += contrast_loss
 
 	test_accuracy = 100.0 * corrects/batch_size
 
-	return mask, test_logits, test_loss, test_reg_loss, tv_loss, test_accuracy, mask, corrects
+	return mask, test_logits, test_loss, test_reg_loss, tv_loss, contrast_loss, test_accuracy, mask, corrects
 
 
 def main():
@@ -243,7 +250,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_name = 'TV_reg_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	log_name = 'Contrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
 	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
 
 	if not os.path.exists(log_dir):
@@ -266,13 +273,14 @@ def main():
 		epoch_train_loss = 0 
 		epoch_train_reg_loss = 0 
 		epoch_train_tv_loss = 0
+		epoch_train_contrast_loss = 0
 		for i, (train_sample,train_batch_name) in enumerate(train_data_loader):
 			train_batch_feature = train_sample['feature'].transpose(1,2)
 			train_batch_label = train_sample['label']
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
 			
-			mask, train_loss, train_reg_loss, train_tv_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
+			mask, train_loss, train_reg_loss, train_tv_loss, train_contrast_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
 			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
 			train_name_list.append(train_batch_name)
 			train_spa_att_weights_list.append(mask)
@@ -280,6 +288,7 @@ def main():
 			epoch_train_loss += train_loss
 			epoch_train_reg_loss += train_reg_loss
 			epoch_train_tv_loss += train_tv_loss
+			epoch_train_contrast_loss += train_contrast_loss
 			print("batch {}, train_acc: {} ".format(i, train_accuracy))
 			total_train_corrects+= train_corrects
 			
@@ -288,6 +297,7 @@ def main():
 		epoch_train_loss = epoch_train_loss/num_step_per_epoch_train
 		epoch_train_reg_loss = epoch_train_reg_loss/num_step_per_epoch_train
 		epoch_train_tv_loss = epoch_train_tv_loss/num_step_per_epoch_train
+		epoch_train_contrast_loss = epoch_train_contrast_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
 		np.save("./saved_weights/TV_train_name.npy", np.asarray(train_name_list))
 		np.save("./saved_weights/TV_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
@@ -298,7 +308,8 @@ def main():
 		writer.add_scalar('train_loss', epoch_train_loss, epoch_num)
 		writer.add_scalar('train_tv_loss', epoch_train_tv_loss, epoch_num)
 		writer.add_scalar('train_reg_loss', epoch_train_reg_loss, epoch_num)
-
+		writer.add_scalar('train_contrast_loss', epoch_train_contrast_loss, epoch_num)
+		
 		save_train_file = log_name+"_train_acc.txt"
 		with open(save_train_file, "a") as text_file:
 				print(f"{str(final_train_accuracy)}", file=text_file)
@@ -311,6 +322,7 @@ def main():
 		epoch_test_loss = 0
 		epoch_test_reg_loss =0
 		epoch_test_tv_loss =0 
+		epoch_test_contrast_loss = 0
 		for i, (test_sample, test_batch_name) in enumerate(test_data_loader):
 			test_batch_feature = test_sample['feature'].transpose(1,2)
 			test_batch_label = test_sample['label']
@@ -319,7 +331,7 @@ def main():
 			test_batch_label = Variable(test_batch_label[:,0], volatile=True).cuda().long()
 			
 
-			mask, test_logits, test_loss, test_reg_loss, test_tv_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
+			mask, test_logits, test_loss, test_reg_loss, test_tv_loss, test_contrast_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
 
 			test_name_list.append(test_batch_name)
 			test_spa_att_weights_list.append(test_spa_att_weights)
@@ -333,13 +345,14 @@ def main():
 
 			epoch_test_reg_loss += test_reg_loss
 			epoch_test_tv_loss += test_tv_loss
+			epoch_test_contrast_loss += test_contrast_loss
 
 		avg_test_corrects = total_test_corrects*100/1530
 
 		epoch_test_loss = epoch_test_loss/num_step_per_epoch_test
 		epoch_test_reg_loss = epoch_test_reg_loss/num_step_per_epoch_test
 		epoch_test_tv_loss = epoch_test_tv_loss/num_step_per_epoch_test
-
+		epoch_test_contrast_loss = epoch_test_contrast_loss/num_step_per_epoch_test
 		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
 		#print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
 		np.save("./saved_weights/hc_test_name.npy", np.asarray(test_name_list))
@@ -352,6 +365,7 @@ def main():
 		writer.add_scalar('test_loss', epoch_test_loss, epoch_num)
 		writer.add_scalar('test_reg_loss', epoch_test_reg_loss, epoch_num)
 		writer.add_scalar('test_tv_loss', epoch_test_tv_loss, epoch_num)
+		writer.add_scalar('test_contrast_loss', epoch_test_contrast_loss, epoch_num)
 		
 		scheduler.step(epoch_test_loss.data.cpu().numpy()[0])
 		writer.add_scalar('learning_rate', model_optimizer.param_groups[0]['lr'])
@@ -386,15 +400,17 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
-    parser.add_argument('--tv_reg_factor', type=float, default=1,
-                        help='multiply factor for total variation regularization. [0]')
+    parser.add_argument('--tv_reg_factor', type=float, default=0.001,
+                        help='multiply factor for total variation regularization. [0.005]')
+    parser.add_argument('--constrast_reg_factor', type=float, default=0.001,
+                        help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
                         help='initial learning rate. [1e-5]')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='weight decay. [1e-5]')
     parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
-    parser.add_argument('--dropout_ratio', type=float, default=0.3,
+    parser.add_argument('--dropout_ratio', type=float, default=0.2,
                         help='2d dropout raito. [0.3]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
