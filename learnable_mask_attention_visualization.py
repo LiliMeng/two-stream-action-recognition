@@ -2,8 +2,15 @@ import os
 import numpy as np
 import cv2
 
-train_name=np.load("./saved_weights/hc_train_name.npy")
-train_weights = np.load("./saved_weights/hc_train_att_weights.npy")
+mask_dir = "Contrast_0.0001_TV_reg1e-05_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Aug_16_22_29"
+
+saved_vis_dir = os.path.join("./mask_visualization",mask_dir)
+
+if not os.path.exists(saved_vis_dir):
+    os.makedirs(saved_vis_dir)
+
+train_name=np.load("./saved_weights/"+mask_dir+"/train_name.npy")
+train_weights = np.load("./saved_weights/"+mask_dir+"/train_att_weights.npy")
 
 train_name = train_name.transpose((0,2,1)).reshape(-1,22)
 
@@ -39,7 +46,7 @@ for img_indx in range(22):
 
     result = heatmap * 0.3 + img* 0.5
 
-    result_name = 'spa_atten_'+img_path.split('/')[-3] + img_path.split('/')[-2] + img_path.split('/')[-1]
+    result_name = saved_vis_dir+'/spa_atten_'+img_path.split('/')[-3] + img_path.split('/')[-2] + img_path.split('/')[-1]
     print("result_name: ", result_name)
     cv2.imwrite(result_name, result)
 
