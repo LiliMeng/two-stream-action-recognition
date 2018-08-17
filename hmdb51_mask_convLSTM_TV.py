@@ -285,10 +285,10 @@ def main():
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
 			
-			mask, train_loss, train_reg_loss, train_tv_loss, train_contrast_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
+			train_mask, train_loss, train_reg_loss, train_tv_loss, train_contrast_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
 			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
 			train_name_list.append(train_batch_name)
-			train_spa_att_weights_list.append(mask)
+			train_spa_att_weights_list.append(train_mask)
 			avg_train_accuracy+=train_accuracy
 			epoch_train_loss += train_loss
 			epoch_train_reg_loss += train_reg_loss
@@ -336,10 +336,10 @@ def main():
 			test_batch_label = Variable(test_batch_label[:,0], volatile=True).cuda().long()
 			
 
-			mask, test_logits, test_loss, test_reg_loss, test_tv_loss, test_contrast_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
+			test_mask, test_logits, test_loss, test_reg_loss, test_tv_loss, test_contrast_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
 
 			test_name_list.append(test_batch_name)
-			test_spa_att_weights_list.append(test_spa_att_weights)
+			test_spa_att_weights_list.append(test_mask)
 			
 			print("batch_test_accuracy: ", test_accuracy)
 			total_test_corrects += test_corrects 
@@ -405,9 +405,9 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
-    parser.add_argument('--tv_reg_factor', type=float, default=0.0001,
+    parser.add_argument('--tv_reg_factor', type=float, default=0,
                         help='multiply factor for total variation regularization. [0.005]')
-    parser.add_argument('--constrast_reg_factor', type=float, default=0.0001,
+    parser.add_argument('--constrast_reg_factor', type=float, default=0,
                         help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
                         help='initial learning rate. [1e-5]')
