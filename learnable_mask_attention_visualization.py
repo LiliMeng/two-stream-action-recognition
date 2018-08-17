@@ -22,23 +22,21 @@ saved_vis_dir = os.path.join("./mask_visualization",mode_mask_dir)
 if not os.path.exists(saved_vis_dir):
     os.makedirs(saved_vis_dir)
 
-train_name=np.load("./saved_weights/"+mask_dir+"/"+mode+"_name.npy")
-train_weights = np.load("./saved_weights/"+mask_dir+"/"+mode+"_att_weights.npy")
+video_name=np.load("./saved_weights/"+mask_dir+"/"+mode+"_name.npy")
+video_weights = np.load("./saved_weights/"+mask_dir+"/"+mode+"_att_weights.npy")
 
-train_name = train_name.transpose((0,2,1)).reshape(-1,22)
+video_name = video_name.transpose((0,2,1)).reshape(-1,22)
 
-print("train_name")
-print(train_name.shape)
-print("train_weights.shape")
-print(train_weights.shape)
+print("video_name.shape: ", video_name.shape)
+print("train_weights.shape: ", video_weights.shape)
 
 
-single_train_name = train_name[video_index]
-single_train_weights = train_weights[video_index].reshape(22,7,7)
+single_video_name = video_name[video_index]
+single_video_weights = video_weights[video_index].reshape(22,7,7)
 
 
 for img_indx in range(video_frame_length):
-    img_path = single_train_name[img_indx]
+    img_path = single_video_name[img_indx]
     print('img_path: ', img_path)
     img_path = img_path.replace("/home/lili/Video","/media/lili/fce9875a-a5c8-4c35-8f60-db60be29ea5d")
     print("img_path:", img_path)
@@ -46,7 +44,7 @@ for img_indx in range(video_frame_length):
     #height, width, _ = img.shape
     img = cv2.resize(img, (256, 256))
 
-    cam = single_train_weights[img_indx]
+    cam = single_video_weights[img_indx]
     cam = cam - np.min(cam)
     cam_img = cam / np.max(cam)
     cam_img = np.uint8(255 * cam_img)
