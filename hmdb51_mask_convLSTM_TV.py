@@ -253,9 +253,14 @@ def main():
 	log_name = 'Contrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
 	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
 
+	saved_weights_folder = os.path.join('./saved_weights',log_name)
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
 	writer = SummaryWriter(log_dir)
+
+	if not os.path.exists(saved_weights_folder):
+		os.makedirs(saved_weights_folder)
+	
 
 	num_step_per_epoch_train = 3570/FLAGS.train_batch_size
 	num_step_per_epoch_test = 1530/FLAGS.test_batch_size
@@ -299,8 +304,8 @@ def main():
 		epoch_train_tv_loss = epoch_train_tv_loss/num_step_per_epoch_train
 		epoch_train_contrast_loss = epoch_train_contrast_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
-		np.save("./saved_weights/contrast_TV_train_name.npy", np.asarray(train_name_list))
-		np.save("./saved_weights/contrast_TV_train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
+		np.save(saved_weights_folder+"/train_name.npy", np.asarray(train_name_list))
+		np.save(saved_weights_folder+"/train_att_weights.npy", train_spa_att_weights_np.cpu().data.numpy())
 		final_train_accuracy = avg_train_accuracy/num_step_per_epoch_train
 		print("epoch: "+str(epoch_num)+ " train accuracy: " + str(final_train_accuracy))
 		print("epoch: "+str(epoch_num)+ " train corrects: " + str(avg_train_corrects))
@@ -355,8 +360,8 @@ def main():
 		epoch_test_contrast_loss = epoch_test_contrast_loss/num_step_per_epoch_test
 		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
 		#print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
-		np.save("./saved_weights/contrast_hc_test_name.npy", np.asarray(test_name_list))
-		np.save("./saved_weights/contrast_hc_test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
+		np.save(saved_weights_folder+"/test_name.npy", np.asarray(test_name_list))
+		np.save(saved_weights_folder+"/test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
 	
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 		print("epoch: "+str(epoch_num)+ " test accuracy: " + str(final_test_accuracy))
@@ -400,9 +405,9 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
-    parser.add_argument('--tv_reg_factor', type=float, default=0.001,
+    parser.add_argument('--tv_reg_factor', type=float, default=0.0001,
                         help='multiply factor for total variation regularization. [0.005]')
-    parser.add_argument('--constrast_reg_factor', type=float, default=0.005,
+    parser.add_argument('--constrast_reg_factor', type=float, default=0.0001,
                         help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
                         help='initial learning rate. [1e-5]')
