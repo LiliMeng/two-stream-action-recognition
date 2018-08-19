@@ -44,7 +44,7 @@ class Action_Att_LSTM(nn.Module):
 		self.att_hw_bn= nn.BatchNorm1d(49)
 		self.hidden_size = hidden_size
 		self.fc = nn.Linear(hidden_size, output_size)
-		self.fc_attention = nn.Linear(hidden_size, seq_len)
+		self.fc_attention = nn.Linear(hidden_size, 1)
 		self.fc_out = nn.Linear(hidden_size, output_size)
 		self.fc_c0_0 = nn.Linear(2048, 1024)
 		self.fc_c0_1 = nn.Linear(1024, 512)
@@ -72,7 +72,7 @@ class Action_Att_LSTM(nn.Module):
                  			num_layers=1,
                  			batch_first=True,
                  			bias=True,
-                 			return_all_layers=False)
+                 			return_all_layers=True)
 	
 	def forward(self, input_x):
 
@@ -106,17 +106,31 @@ class Action_Att_LSTM(nn.Module):
 		mask_input_x = mask * input_x
 		output, hidden = self.conv_lstm(mask_input_x)
 
+		#print("output[0].shape ", output[0].shape)
+		#print("len(hidden[0]) ", len(hidden[0]))
+		#print("hidden")
+		#print(hidden)
+		#print(len(hidden[0][0]))
+
+		# hidden: 30x512x7x7 
+		# output[0].shape: ([30, 22, 512, 7, 7])
+
 		output = output[0]
 		
 		output = torch.mean(output,dim=4)
-		output = torch.mean(output,dim=3).transpose(1,2)
+		output = torch.mean(output,dim=3)
+		
+		#print("output.shape: ", output.shape)
+		#[30, 22, 512]
+		att_weight = self.fc_attention(output).view(-1, 22)
+
+		#print("att_weight.shape")
+		#print(att_weight.shape)
 		
 
-		att_weight = self.fc_attention(output[:,:,-1])
-		
 		att_weight = F.softmax(att_weight, dim =1)
 		
-		weighted_output = torch.sum(output.transpose(1,2)*att_weight.unsqueeze(dim=2),
+		weighted_output = torch.sum(output*att_weight.unsqueeze(dim=2),
 									dim =1)
 		
 		final_output = self.fc(weighted_output)
@@ -251,8 +265,9 @@ def main():
 	best_test_accuracy = 0
 	
 	log_name = 'Contrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	#log_name = "tmp"
 	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
-
+	#log_dir = "tmp"
 	saved_weights_folder = os.path.join('./saved_weights',log_name)
 	if not os.path.exists(log_dir):
 		os.makedirs(log_dir)
@@ -280,6 +295,7 @@ def main():
 		epoch_train_tv_loss = 0
 		epoch_train_contrast_loss = 0
 		for i, (train_sample,train_batch_name) in enumerate(train_data_loader):
+			print("len(train_batch_name): ",len(train_batch_name))
 			train_batch_feature = train_sample['feature'].transpose(1,2)
 			train_batch_label = train_sample['label']
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
@@ -329,6 +345,8 @@ def main():
 		epoch_test_tv_loss =0 
 		epoch_test_contrast_loss = 0
 		for i, (test_sample, test_batch_name) in enumerate(test_data_loader):
+			print("len(test_batch_name)", len(test_batch_name))
+			print("test_sample['feature'].shape", test_sample['feature'].shape)
 			test_batch_feature = test_sample['feature'].transpose(1,2)
 			test_batch_label = test_sample['label']
 			
@@ -339,6 +357,7 @@ def main():
 			test_mask, test_logits, test_loss, test_reg_loss, test_tv_loss, test_contrast_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
 
 			test_name_list.append(test_batch_name)
+			print("len(test_name_list): ", len(test_name_list))
 			test_spa_att_weights_list.append(test_mask)
 			
 			print("batch_test_accuracy: ", test_accuracy)
@@ -393,7 +412,7 @@ if __name__ == '__main__':
                         help='dataset: "UCF101", "HMDB51"')
     parser.add_argument('--train_batch_size', type=int, default=30,
                     	help='train_batch_size: [64]')
-    parser.add_argument('--test_batch_size', type=int, default=28,
+    parser.add_argument('--test_batch_size', type=int, default=30,
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=200,
                     	help='max number of training epoch: [60]')
@@ -405,15 +424,15 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
-    parser.add_argument('--tv_reg_factor', type=float, default=0,
+    parser.add_argument('--tv_reg_factor', type=float, default=0.00001,
                         help='multiply factor for total variation regularization. [0.005]')
-    parser.add_argument('--constrast_reg_factor', type=float, default=0,
+    parser.add_argument('--constrast_reg_factor', type=float, default=0.0001,
                         help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
                         help='initial learning rate. [1e-5]')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='weight decay. [1e-5]')
-    parser.add_argument('--lr_patience', type=int, default=3,
+    parser.add_argument('--lr_patience', type=int, default=10,
                     	help='reduce learning rate on plateau patience [3]')
     parser.add_argument('--dropout_ratio', type=float, default=0.2,
                         help='2d dropout raito. [0.3]')
