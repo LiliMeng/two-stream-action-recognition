@@ -37,5 +37,3 @@ for img_indx in range(22):
     result_name = 'spa_atten_'+img_path.split('/')[-3] + img_path.split('/')[-2] + img_path.split('/')[-1]
     print("result_name: ", result_name)
     cv2.imwrite(result_name, result)
-
-

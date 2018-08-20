@@ -432,7 +432,7 @@ if __name__ == '__main__':
                         help='initial learning rate. [1e-5]')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='weight decay. [1e-5]')
-    parser.add_argument('--lr_patience', type=int, default=10,
+    parser.add_argument('--lr_patience', type=int, default=5,
                     	help='reduce learning rate on plateau patience [3]')
     parser.add_argument('--dropout_ratio', type=float, default=0.2,
                         help='2d dropout raito. [0.3]')

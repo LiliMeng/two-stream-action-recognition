@@ -314,7 +314,6 @@ def main():
 			test_name_list.append(test_batch_name)
 			test_spa_att_weights_list.append(test_spa_att_weights)
 			
-			print("batch_test_accuracy: ", test_accuracy)
 			total_test_corrects += test_corrects 
 
 			avg_test_accuracy+= test_accuracy
@@ -376,7 +375,7 @@ if __name__ == '__main__':
                         help='weight decay. [1e-3]')
     parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
-    parser.add_argument('--dropout_ratio', type=float, default=0.3,
+    parser.add_argument('--dropout_ratio', type=float, default=0.5,
                         help='2d dropout raito. [0.3]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:

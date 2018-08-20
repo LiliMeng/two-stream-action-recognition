@@ -43,8 +43,8 @@ class Action_Att_LSTM(nn.Module):
 		self.att_vw_bn= nn.BatchNorm1d(49)
 		self.att_hw_bn= nn.BatchNorm1d(49)
 		self.hidden_size = hidden_size
-		self.fc = nn.Linear(hidden_size, output_size)
-		self.fc_attention = nn.Linear(hidden_size, seq_len)
+		self.fc = nn.Linear(2048, output_size)
+		self.fc_attention = nn.Linear(2048, 1)
 		self.fc_out = nn.Linear(hidden_size, output_size)
 		self.fc_c0_0 = nn.Linear(2048, 1024)
 		self.fc_c0_1 = nn.Linear(1024, 512)
@@ -56,12 +56,12 @@ class Action_Att_LSTM(nn.Module):
 		self.dropout_2d = nn.Dropout2d(p=FLAGS.dropout_ratio)
 		self.conv_lstm = ConvLSTM(input_size=(7, 7),
                  			input_dim=2048,
-                 			hidden_dim=[512],
+                 			hidden_dim=[1],
                  			kernel_size=(3, 3),
                  			num_layers=1,
                  			batch_first=True,
                  			bias=True,
-                 			return_all_layers=False)
+                 			return_all_layers=True)
 	
 	def forward(self, input_x):
 
@@ -73,21 +73,28 @@ class Action_Att_LSTM(nn.Module):
 	
 		input_x = input_x.view(-1, 22, 2048, 7, 7)
 		
-		print(input_x.shape)
-		
-		output, hidden = self.conv_lstm(input_x)
 
-		output = output[0]
+		hidden, output = self.conv_lstm(input_x)
+
+		alpha = nn.Softmax()(hidden[0].view(-1, 22, 49))
+
+		alpha = alpha.view(-1,22,1,7,7)
+
+		context = alpha*input_x
+
+		context = torch.sum(context.view(-1, 22, 2048, 49), dim=3)
 		
-		output = torch.mean(output,dim=4)
-		output = torch.mean(output,dim=3).transpose(1,2)
+		#output = torch.mean(output,dim=4)
+		#output = torch.mean(output,dim=3).transpose(1,2)
 		
 
-		att_weight = self.fc_attention(output[:,:,-1])
+		#att_weight = self.fc_attention(output[:,:,-1])
+		att_weight = self.fc_attention(context).view(-1,22)
 		
 		att_weight = F.softmax(att_weight, dim =1)
+
 		
-		weighted_output = torch.sum(output.transpose(1,2)*att_weight.unsqueeze(dim=2),
+		weighted_output = torch.sum(context*att_weight.unsqueeze(dim=2),
 									dim =1)
 		
 		final_output = self.fc(weighted_output)
@@ -304,7 +311,7 @@ def main():
 		epoch_test_loss = epoch_test_loss/num_step_per_epoch_test
 
 		test_spa_att_weights_np = torch.cat(test_spa_att_weights_list, dim=0)
-		print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
+		#print("test_spa_att_weights_np.shape ", test_spa_att_weights_np.shape)
 		#np.save("./saved_weights/hc_test_name.npy", np.asarray(test_name_list))
 		#np.save("./saved_weights/hc_test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
 	
@@ -348,14 +355,14 @@ if __name__ == '__main__':
     					help='use regularizer', action='store_false')
     parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
-    parser.add_argument('--init_lr', type=float, default=1e-5,
-                        help='initial learning rate. [1e-5]')
-    parser.add_argument('--weight_decay', type=float, default=1e-4,
-                        help='weight decay. [1e-4]')
-    parser.add_argument('--lr_patience', type=int, default=3,
+    parser.add_argument('--init_lr', type=float, default=1e-4,
+                        help='initial learning rate. [1e-3]')
+    parser.add_argument('--weight_decay', type=float, default=1e-5,
+                        help='weight decay. [1e-5]')
+    parser.add_argument('--lr_patience', type=int, default=15,
                     	help='reduce learning rate on plateau patience [3]')
-    parser.add_argument('--dropout_ratio', type=float, default=0.3,
-                        help='2d dropout raito. [0.3]')
+    parser.add_argument('--dropout_ratio', type=float, default=0.1,
+                        help='2d dropout raito. [0.1]')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))

@@ -2,9 +2,12 @@ import os
 import numpy as np
 import cv2
 
-mask_dir = "Contrast_0.0001_TV_reg1e-05_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Aug_16_22_29"
+#mask_dir = "Contrast_0.0001_TV_reg1e-05_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Aug_16_22_29"
 
-mode = "train"
+#mask_dir = "Contrast_0_TV_reg0_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Aug_17_11_48"
+#mask_dir = "Contrast_0_TV_reg0_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Aug_18_16_29"
+mask_dir ="Contrast_0.0001_TV_reg1e-05_mask_LRPatience10_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Aug_18_22_37"
+mode = "test"
 
 if mode == "train":
     mode_mask_dir = os.path.join(mask_dir, mode)
@@ -13,7 +16,7 @@ elif mode == "test":
 else:
     raise Exception("no such mode, it shall be either train or test")
 
-video_index = 3
+video_index = 1
 
 video_frame_length = 22
 
@@ -24,6 +27,8 @@ if not os.path.exists(saved_vis_dir):
 
 video_name=np.load("./saved_weights/"+mask_dir+"/"+mode+"_name.npy")
 video_weights = np.load("./saved_weights/"+mask_dir+"/"+mode+"_att_weights.npy")
+print("video_name.shape: ", video_name.shape)
+print("train_weights.shape: ", video_weights.shape)
 
 video_name = video_name.transpose((0,2,1)).reshape(-1,22)
 

@@ -54,10 +54,9 @@ if __name__ == '__main__':
     for i, (sample, batch_name) in enumerate(data_loader):
         batch_feature = sample['feature']
         batch_label = sample['label']
-        print("batch_name: ", batch_name)
+        print("len(batch_name): ", len(batch_name))
         print("batch_label.shape: ", batch_label.shape)
-        #batch_img_names = get_video_names(sample, batch_label, batch_size, category_dict)
         
         print("i: ", i)
         #print(batch_img_names)
-        #break
+        break

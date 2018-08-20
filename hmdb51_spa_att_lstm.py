@@ -109,6 +109,7 @@ class Action_Att_LSTM(nn.Module):
 			output_list.append(output)
 			alpha_list.append(alpha)
 			
+		
 		final_output =  torch.mean(torch.stack(output_list, dim=0),0)
 		
 		alpha_total = torch.stack(alpha_list).transpose(0,1)
