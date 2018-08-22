@@ -456,7 +456,7 @@ if __name__ == '__main__':
     parser.add_argument('--dropout_ratio', type=float, default=0.2,
                         help='2d dropout raito. [0.2]')
     parser.add_argument('--using_temporal_att', dest='using_temporal_att',
-    					help='use the temporal attention', action='store_true')
+    					help='use the temporal attention', action='store_false')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
