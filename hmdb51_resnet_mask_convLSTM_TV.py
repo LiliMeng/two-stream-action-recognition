@@ -35,6 +35,16 @@ use_cuda = True
 
 from network import BasicBlock
 
+def downsample_channel(inplane, outplane, stride=1):
+
+	downsample = nn.Sequential(
+                nn.Conv2d(inplane, outplane,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(outplane),
+            )
+
+	return downsample
+
 class Action_Att_LSTM(nn.Module):
 	def __init__(self, input_size, hidden_size, output_size, seq_len):
 		super(Action_Att_LSTM, self).__init__()
@@ -54,23 +64,23 @@ class Action_Att_LSTM(nn.Module):
 		self.fc_h0_1 = nn.Linear(1024, 512)
 		self.input_size = input_size
 
-		self.mask_conv = nn.Sequential(
-				nn.Conv2d(2048, 1024, kernel_size=3, padding=1, bias=False),
-				nn.BatchNorm2d(1024),
-				nn.ReLU(),
-				nn.Conv2d(1024, 512, kernel_size=3, padding=1, bias=False),
-				nn.BatchNorm2d(512),
-				nn.ReLU(),
-				nn.Conv2d(512, 1, kernel_size=3, padding=1, bias=False),
-				nn.Sigmoid(), #(bs*22, 1, 7, 7)
-			)
-
 		# self.mask_conv = nn.Sequential(
-		# 	BasicBlock(2048, 1024, stride=1, downsample=None),
-		# 	BasicBlock(1024, 512, stride=1, downsample=None),
-		# 	BasicBlock(512, 1, stride=1, downsample=None),
-		# 	nn.Sigmoid(),
+		# 		nn.Conv2d(2048, 1024, kernel_size=3, padding=1, bias=False),
+		# 		nn.BatchNorm2d(1024),
+		# 		nn.ReLU(),
+		# 		nn.Conv2d(1024, 512, kernel_size=3, padding=1, bias=False),
+		# 		nn.BatchNorm2d(512),
+		# 		nn.ReLU(),
+		# 		nn.Conv2d(512, 1, kernel_size=3, padding=1, bias=False),
+		# 		nn.Sigmoid(), #(bs*22, 1, 7, 7)
 		# 	)
+
+		self.mask_conv = nn.Sequential(
+			BasicBlock(2048, 1024, stride=1, downsample=downsample_channel(2048, 1024)),
+			BasicBlock(1024, 512, stride=1, downsample=downsample_channel(1024, 512)),
+			BasicBlock(512, 1, stride=1, downsample=downsample_channel(512, 1)),
+			nn.Sigmoid(),
+			)
 
 
 		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
@@ -274,7 +284,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_name = 'Contrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	log_name = 'resnetmask_Contrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
 	#log_name = "tmp"
 	log_dir = os.path.join('./Conv_51HMDB51_tensorboard', log_name)
 	#log_dir = "tmp"
