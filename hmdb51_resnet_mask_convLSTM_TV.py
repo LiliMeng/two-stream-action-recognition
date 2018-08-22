@@ -33,6 +33,8 @@ from feature_dataloader import *
 from convlstm import *
 use_cuda = True
 
+from network import BasicBlock
+
 class Action_Att_LSTM(nn.Module):
 	def __init__(self, input_size, hidden_size, output_size, seq_len):
 		super(Action_Att_LSTM, self).__init__()
@@ -62,6 +64,14 @@ class Action_Att_LSTM(nn.Module):
 				nn.Conv2d(512, 1, kernel_size=3, padding=1, bias=False),
 				nn.Sigmoid(), #(bs*22, 1, 7, 7)
 			)
+
+		# self.mask_conv = nn.Sequential(
+		# 	BasicBlock(2048, 1024, stride=1, downsample=None),
+		# 	BasicBlock(1024, 512, stride=1, downsample=None),
+		# 	BasicBlock(512, 1, stride=1, downsample=None),
+		# 	nn.Sigmoid(),
+		# 	)
+
 
 		self.lstm_cell = nn.LSTMCell(input_size, hidden_size)
 		self.dropout_2d = nn.Dropout2d(p=FLAGS.dropout_ratio)
@@ -120,20 +130,20 @@ class Action_Att_LSTM(nn.Module):
 		output = torch.mean(output,dim=4)
 		output = torch.mean(output,dim=3)
 		
-		#print("output.shape: ", output.shape)
-		#[30, 22, 512]
-		att_weight = self.fc_attention(output).view(-1, 22)
 
-		#print("att_weight.shape")
-		#print(att_weight.shape)
-		
+	
+		att_weight = self.fc_attention(output).view(-1, 22)
 
 		att_weight = F.softmax(att_weight, dim =1)
 		
 		weighted_output = torch.sum(output*att_weight.unsqueeze(dim=2),
 									dim =1)
 		
-		final_output = self.fc(weighted_output)
+		if FLAGS.using_temporal_att:
+			final_output = self.fc(weighted_output)
+		else:
+			new_output =output.transpose(1,2)
+			final_output = self.fc(new_output[:,:,-1])
 		
 		return final_output, att_weight, mask, tv_loss, contrast_loss
 
@@ -345,7 +355,7 @@ def main():
 		epoch_test_tv_loss =0 
 		epoch_test_contrast_loss = 0
 		for i, (test_sample, test_batch_name) in enumerate(test_data_loader):
-		
+			
 			test_batch_feature = test_sample['feature'].transpose(1,2)
 			test_batch_label = test_sample['label']
 			
@@ -356,6 +366,7 @@ def main():
 			test_mask, test_logits, test_loss, test_reg_loss, test_tv_loss, test_contrast_loss, test_accuracy, test_spa_att_weights, test_corrects = test_step(FLAGS.test_batch_size, test_batch_feature, test_batch_label, lstm_action, criterion)
 
 			test_name_list.append(test_batch_name)
+		
 			test_spa_att_weights_list.append(test_mask)
 			
 			print("batch_test_accuracy: ", test_accuracy)
@@ -427,13 +438,15 @@ if __name__ == '__main__':
     parser.add_argument('--constrast_reg_factor', type=float, default=0.0001,
                         help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
-                        help='initial learning rate. [1e-5]')
+                        help='initial learning rate. [1e-4]')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='weight decay. [1e-5]')
-    parser.add_argument('--lr_patience', type=int, default=5,
+    parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
     parser.add_argument('--dropout_ratio', type=float, default=0.2,
-                        help='2d dropout raito. [0.3]')
+                        help='2d dropout raito. [0.2]')
+    parser.add_argument('--using_temporal_att', dest='using_temporal_att',
+    					help='use the temporal attention', action='store_true')
     FLAGS, unparsed = parser.parse_known_args()
     if len(unparsed) > 0:
         raise Exception('Unknown arguments:' + ', '.join(unparsed))
