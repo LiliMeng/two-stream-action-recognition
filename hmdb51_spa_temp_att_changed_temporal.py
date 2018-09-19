@@ -1,8 +1,8 @@
 '''
-spatial temporal attention for HMDB51 dataset
+spatial temporal attention for thumos14 object localization dataset
 
 Author: Lili Meng
-Date: Sep 19th, 2018
+Date: August 29th, 2018
 
 '''
 from __future__ import print_function
@@ -126,9 +126,9 @@ class Action_Att_LSTM(nn.Module):
 	  	features_tmp = torch.mean(torch.mean(features, dim=3), dim=2) #[30x2048x7x7]
 	  	hiddens_tmp = torch.mean(torch.mean(hiddens, dim=3), dim=2) #[30x512x7x7]
 	  	att_fea = self.att_feature_w(features_tmp)
-	  	att_fea = self.att_vw_bn(att_fea)
+	  	#att_fea = self.att_vw_bn(att_fea)
 	  	att_h = self.att_hidden_w(hiddens_tmp)
-	  	att_h = self.att_hw_bn(att_h)
+	  	#att_h = self.att_hw_bn(att_h)
 	  	att_out = att_fea + att_h 
 	  	#att_out = att_h
 
@@ -396,7 +396,7 @@ def main():
 			epoch_test_tv_loss += test_tv_loss
 			epoch_test_contrast_loss += test_contrast_loss
 
-		avg_test_corrects = total_test_corrects*100/3570
+		avg_test_corrects = total_test_corrects*100/1530
 
 		epoch_test_loss = epoch_test_loss/num_step_per_epoch_test
 		epoch_test_reg_loss = epoch_test_reg_loss/num_step_per_epoch_test
@@ -453,7 +453,7 @@ def main():
 
 			
 		train_spa_att_weights_np = torch.cat(train_spa_att_weights_list, dim=0)
-		avg_train_corrects = total_train_corrects *100 /1530
+		avg_train_corrects = total_train_corrects *100 /3570
 		epoch_train_loss = epoch_train_loss/num_step_per_epoch_train
 		epoch_train_reg_loss = epoch_train_reg_loss/num_step_per_epoch_train
 		epoch_train_tv_loss = epoch_train_tv_loss/num_step_per_epoch_train
