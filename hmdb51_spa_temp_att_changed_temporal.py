@@ -330,7 +330,7 @@ def main():
 
 	best_test_accuracy = 0
 	
-	log_name = 'Contrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
+	log_name = 'noMaskContrast_{}_TV_reg{}_mask_LRPatience{}_Adam{}_decay{}_dropout_{}_Temporal_ConvLSTM_hidden512_regFactor_{}'.format(str(FLAGS.constrast_reg_factor), str(FLAGS.tv_reg_factor), str(FLAGS.lr_patience), str(FLAGS.init_lr), str(FLAGS.weight_decay), str(FLAGS.dropout_ratio), str(FLAGS.hp_reg_factor))+time.strftime("_%b_%d_%H_%M", time.localtime())
 	#log_name = "tmp"
 	log_dir = os.path.join('./Conv_hmdb51_tensorboard', log_name)
 	#log_dir = "tmp"
@@ -580,10 +580,10 @@ if __name__ == '__main__':
     					help='not use change learning rate by default', action='store_true')
     parser.add_argument('--use_regularizer', dest='use_regularizer',
     					help='use regularizer', action='store_false')
-    parser.add_argument('--hp_reg_factor', type=float, default=0,
+    parser.add_argument('--hp_reg_factor', type=float, default=1,
                         help='multiply factor for regularization. [0]')
     parser.add_argument('--tv_reg_factor', type=float, default=0.00001,
-                        help='multiply factor for total variation regularization. [0.005]')
+                        help='multiply factor for total variation regularization. [0.00001]')
     parser.add_argument('--constrast_reg_factor', type=float, default=0.0001,
                         help='constrast regularization factor. [1]')
     parser.add_argument('--init_lr', type=float, default=1e-4,
