@@ -16,8 +16,8 @@ class HMDB51Dataset(Dataset):
 
     def __getitem__(self, idx):
         feature_file = os.path.join(self.data_dir, self.dataset['Feature'][idx])
-        label_file = os.path.join(self.data_dir, self.dataset['Label'][idx])
-        name_file = os.path.join(self.data_dir, self.dataset['Name'][idx])
+        label_file = os.path.join(self.data_dir,  self.dataset['Feature'][idx].replace("features", "label"))
+        name_file = os.path.join(self.data_dir, self.dataset['Feature'][idx].replace("features", "name"))
         
         feature_per_video = np.load(feature_file)
         label_per_video = np.load(label_file)
@@ -37,14 +37,14 @@ def get_loader(data_dir, csv_file, batch_size, mode='train', dataset='hmdb51'):
     if dataset == 'hmdb51':
         dataset = HMDB51Dataset(data_dir, csv_file)
     
-    data_loader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4)
+    data_loader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=12)
 
     return data_loader
 
 if __name__ == '__main__':
-    data_dir = './spa_features/test'
+    data_dir = '/ssd/Lili/hmdb51/saved_features/hmdb51_test/'
 
-    csv_file = './spa_features/test_features_list.csv'
+    csv_file = './feature_list/feature_test_list.csv'
     batch_size = 30
     data_loader = get_loader(data_dir, csv_file, batch_size=batch_size, mode='test',
                              dataset='hmdb51')
