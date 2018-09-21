@@ -26,11 +26,11 @@ class spatial_dataset(Dataset):
         #     path = self.root_dir + video_name.split('_')[0]+'/separated_images/v_'+video_name+'/v_'+video_name+'_'
          
         path = self.root_dir + video_name
-        img = Image.open(os.path.join(path,  str('%05d'%(index)) + '.jpg'))
+        img = Image.open(os.path.join(path,  'img_'+str('%05d'%(index)) + '.jpg'))
         try:
             transformed_img = self.transform(img)
         except:
-            print(os.path.join(path,  str('%05d'%(index)) + '.jpg'))
+            print(os.path.join(path, 'img_'+ str('%05d'%(index)) + '.jpg'))
             img.close()
 
         return transformed_img
@@ -43,9 +43,11 @@ class spatial_dataset(Dataset):
             nb_clips = int(nb_clips)
             clips = []
         
-            clips.append(random.randint(1, int(nb_clips/3)))
-            clips.append(random.randint(int(nb_clips/3), int(nb_clips*2/3)))
-            clips.append(random.randint(int(nb_clips*2/3), nb_clips+1))
+            clips.append(random.randint(1, int(nb_clips/5)))
+            clips.append(random.randint(int(nb_clips/5), int(nb_clips*2/5)))
+            clips.append(random.randint(int(nb_clips*2/5), int(nb_clips*3/5)))
+            clips.append(random.randint(int(nb_clips*3/5), int(nb_clips*4/5)))
+            clips.append(random.randint(int(nb_clips*4/5), nb_clips+1))
             
         elif self.mode == 'test':
             video_name, index = list(self.keys)[idx].split(' ')
@@ -138,10 +140,10 @@ class spatial_dataloader():
         print('==> sampling testing frames')
         self.dic_testing={}
         for video in self.test_video:
-            nb_frame = self.test_frame_count[video]-6+1
-            interval = int(nb_frame/6)
+            nb_frame = self.test_frame_count[video]-10+1
+            interval = int(nb_frame/19)
             #print("interval: ", interval)
-            for i in range(6):
+            for i in range(19):
                 frame = i*interval
                # print("frame: ", frame)
                 #frame = random.randint(1, nb_frame)

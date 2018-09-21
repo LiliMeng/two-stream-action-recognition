@@ -41,9 +41,9 @@ def main():
     data_loader = dataloader.spatial_dataloader(
                         BATCH_SIZE=arg.batch_size,
                         num_workers=8,
-                        path='/home/lili/Video/datasets/HMDB51_concise/',
-                        train_ucf_list ='./hmdb51_list/2class_frame_train.list',
-                        test_ucf_list = './hmdb51_list/2class_frame_test.list',
+                        path='/home/lilimeng/scratch/hmdb51_frames/',
+                        train_ucf_list ='./hmdb51_list/new_train.list',
+                        test_ucf_list = './hmdb51_list/new_test.list',
                         ucf_split ='01', 
                         )
     
@@ -79,7 +79,7 @@ class Spatial_CNN():
     def build_model(self):
         print ('==> Build model and setup loss and optimizer')
         #build model
-        self.model = resnet50(pretrained=True, channel=3, num_classes=arg.num_classes).cuda()
+        self.model = resnet101(pretrained=True, channel=3, num_classes=arg.num_classes).cuda()
         #Loss function and optimizer
         self.criterion = nn.CrossEntropyLoss().cuda()
         self.optimizer = torch.optim.SGD(self.model.parameters(), self.lr, momentum=0.9)
@@ -109,7 +109,7 @@ class Spatial_CNN():
         self.resume_and_evaluate()
         cudnn.benchmark = True
         
-        log_dir = os.path.join('./train_cnn_log', 'hmdb51_3_classes'+time.strftime("_%b_%d_%H_%M", time.localtime()))
+        log_dir = os.path.join('./train_cnn_log', 'hmdb51_'+time.strftime("_%b_%d_%H_%M", time.localtime()))
 
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
