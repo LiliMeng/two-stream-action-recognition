@@ -161,7 +161,7 @@ class Action_Att_LSTM(nn.Module):
 		contrast_loss = -(mask * mask_A).mean(0).sum() * FLAGS.constrast_reg_factor* 0.5 + (mask * mask_B).mean(0).sum() * FLAGS.constrast_reg_factor * 0.5
 
 		mask_input_x_org = mask * input_x
-		
+		#mask_input_x_org =input_x
 		
 		h0, c0 = self.get_start_states(mask_input_x_org)
 		
@@ -185,12 +185,15 @@ class Action_Att_LSTM(nn.Module):
 			weighted_mask_input_all_frame = torch.sum(mask_input_x_org*(temporal_att_weight.view(-1,FLAGS.num_segments,1,1,1)), dim=1)
 
 			h0, c0 = self.convlstm_cell(weighted_mask_input_all_frame, (h0, c0)) 
+			
 			output = torch.mean(torch.mean(h0, dim=3), dim=2)
-			output = self.fc_out(output)
-		
+			#output = self.fc_out(output)
+			
 			output_list.append(output)
-		
-		final_output = torch.mean(torch.stack(output_list, dim=0),0)
+			
+		output = torch.mean(torch.stack(output_list, dim=0),0)
+		final_output= self.fc_out(output)
+		#final_output = torch.mean(torch.stack(output_list, dim=0),0)
 
 		return final_output, temporal_att_weight, mask, tv_loss, contrast_loss
 
@@ -300,8 +303,8 @@ def main():
 	# load train data
 
 	# load train data
-	train_data_dir = '/ssd/Lili/spa_features/train'
-	train_csv_file = '/ssd/Lili/spa_features/train_features_list.csv'
+	train_data_dir = "/ssd/Lili/hmdb51/saved_features/hmdb51_train/"
+	train_csv_file = './feature_list/feature_train_list.csv'
 
 
 	train_data_loader = get_loader(data_dir=train_data_dir, 
@@ -310,8 +313,8 @@ def main():
 							mode ='train',
 							dataset='hmdb51')
 	# load test data
-	test_data_dir = '/ssd/Lili/spa_features/test'
-	test_csv_file = '/ssd/Lili/spa_features/test_features_list.csv'
+	test_data_dir = "/ssd/Lili/hmdb51/saved_features/hmdb51_test/"
+	test_csv_file = './feature_list/feature_test_list.csv'
 	test_data_loader = get_loader(data_dir = test_data_dir, 
     						csv_file = test_csv_file, 
     						batch_size = FLAGS.test_batch_size, 
@@ -346,7 +349,7 @@ def main():
 	num_step_per_epoch_train = 3570/FLAGS.train_batch_size
 	num_step_per_epoch_test = 1530/FLAGS.test_batch_size
 
-	resumed_checkpoint_dir = "./saved_checkpoints/Contrast_0.0001_TV_reg1e-05_mask_LRPatience5_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Sep_12_22_05/thumos14_20_checkpoint_12.pth.tar"
+	resumed_checkpoint_dir = "./saved_checkpoints/Contrast_0.0001_TV_reg1e-05_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_0_Sep_20_10_47/thumos14_20_checkpoint_6.pth.tar"
 	
 	use_pretrained_model = False
 	if use_pretrained_model == True:
@@ -565,13 +568,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='hmdb51',
                         help='dataset: "hmdb51"')
-    parser.add_argument('--train_batch_size', type=int, default=30,
+    parser.add_argument('--train_batch_size', type=int, default=20,
                     	help='train_batch_size: [64]')
-    parser.add_argument('--test_batch_size', type=int, default=30,
+    parser.add_argument('--test_batch_size', type=int, default=20,
                     	help='test_batch_size: [64]')
     parser.add_argument('--max_epoch', type=int, default=200,
                     	help='max number of training epoch: [60]')
-    parser.add_argument('--num_segments', type=int, default=22,
+    parser.add_argument('--num_segments', type=int, default=50,
                     	help='num of segments per video: [110]')
     parser.add_argument('--use_changed_lr', dest='use_changed_lr',
     					help='not use change learning rate by default', action='store_true')
@@ -587,7 +590,7 @@ if __name__ == '__main__':
                         help='initial learning rate. [1e-5]')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                         help='weight decay. [1e-5]')
-    parser.add_argument('--lr_patience', type=int, default=5,
+    parser.add_argument('--lr_patience', type=int, default=3,
                     	help='reduce learning rate on plateau patience [3]')
     parser.add_argument('--dropout_ratio', type=float, default=0.2,
                         help='2d dropout raito. [0.3]')
