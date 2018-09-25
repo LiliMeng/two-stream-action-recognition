@@ -166,6 +166,7 @@ class Action_Att_LSTM(nn.Module):
 		h0, c0 = self.get_start_states(mask_input_x_org)
 		
 		output_list = []
+		temporal_att_weight_list =[]
 		
 		for i in range(FLAGS.num_segments):
 			temporal_att_weight_list = []
@@ -182,6 +183,7 @@ class Action_Att_LSTM(nn.Module):
 			temporal_att_weight =Variable(torch.from_numpy(np.asarray(temporal_att_weight_list).squeeze())).transpose(0,1).cuda()
 			
 			temporal_att_weight = F.softmax(temporal_att_weight, dim=1) #[30, 50]
+			print("temporal_att_weight: ", temporal_att_weight)
 			weighted_mask_input_all_frame = torch.sum(mask_input_x_org*(temporal_att_weight.view(-1,FLAGS.num_segments,1,1,1)), dim=1)
 
 			h0, c0 = self.convlstm_cell(weighted_mask_input_all_frame, (h0, c0)) 
@@ -190,7 +192,11 @@ class Action_Att_LSTM(nn.Module):
 			#output = self.fc_out(output)
 			
 			output_list.append(output)
-			
+			temporal_att_weight_list.append(temporal_att_weight)
+		
+		#final_temporal_att_weight =torch.mean(torch.stack(temporal_att_weight_list, dim=0), 0)
+		
+		#print("final_temporal_att_weight", final_temporal_att_weight)
 		output = torch.mean(torch.stack(output_list, dim=0),0)
 		final_output= self.fc_out(output)
 		#final_output = torch.mean(torch.stack(output_list, dim=0),0)
@@ -236,6 +242,7 @@ def train(batch_size,
 	a training sample which goes through a single step of training.
 	"""
 	loss = 0
+	mask_l1_loss=0
 	model_optimizer.zero_grad()
 
 	logits, att_weight, mask, tv_loss, contrast_loss = model.forward(train_data)
@@ -249,6 +256,12 @@ def train(batch_size,
 		loss += regularization_loss
 		loss += tv_loss
 		loss += contrast_loss
+		#print("mask ")
+		#print(mask)
+		mask_l1_loss += 0.00001*mask.mean(0).sum()
+		#print("mask_l1_loss: ", mask_l1_loss)
+
+		loss += mask_l1_loss
 
 	loss.backward()
 
@@ -262,7 +275,7 @@ def train(batch_size,
 
 	train_pred_label = torch.max(logits, 1)[1].view(train_label.size()).cpu().data.numpy()
 
-	return mask, train_pred_label, final_loss, regularization_loss, tv_loss, contrast_loss, train_accuracy, att_weight, corrects
+	return mask, train_pred_label, mask_l1_loss, final_loss, regularization_loss, tv_loss, contrast_loss, train_accuracy, att_weight, corrects
 
 def test_step(batch_size,
 			 batch_x,
@@ -304,7 +317,7 @@ def main():
 
 	# load train data
 	train_data_dir = "/ssd/Lili/hmdb51/saved_features/hmdb51_train/"
-	train_csv_file = './feature_list/feature_train_list.csv'
+	train_csv_file = './feature_list/hmdb51_feature_train_list.csv'
 
 
 	train_data_loader = get_loader(data_dir=train_data_dir, 
@@ -314,7 +327,7 @@ def main():
 							dataset='hmdb51')
 	# load test data
 	test_data_dir = "/ssd/Lili/hmdb51/saved_features/hmdb51_test/"
-	test_csv_file = './feature_list/feature_test_list.csv'
+	test_csv_file = './feature_list/hmdb51_feature_test_list.csv'
 	test_data_loader = get_loader(data_dir = test_data_dir, 
     						csv_file = test_csv_file, 
     						batch_size = FLAGS.test_batch_size, 
@@ -349,9 +362,9 @@ def main():
 	num_step_per_epoch_train = 3570/FLAGS.train_batch_size
 	num_step_per_epoch_test = 1530/FLAGS.test_batch_size
 
-	resumed_checkpoint_dir = "./saved_checkpoints/Contrast_0.0001_TV_reg1e-05_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_0_Sep_20_10_47/thumos14_20_checkpoint_6.pth.tar"
+	resumed_checkpoint_dir = "./saved_checkpoints/noMaskContrast_0.0001_TV_reg1e-05_mask_LRPatience3_Adam0.0001_decay0.0001_dropout_0.2_Temporal_ConvLSTM_hidden512_regFactor_1_Sep_23_18_23/thumos14_20_checkpoint_23.pth.tar"
 	
-	use_pretrained_model = False
+	use_pretrained_model = True
 	if use_pretrained_model == True:
 		checkpoint = torch.load(resumed_checkpoint_dir)
 		lstm_action.load_state_dict(checkpoint['model'])
@@ -411,7 +424,7 @@ def main():
 		np.save(saved_weights_folder+"/test_att_weights.npy", np.asarray(test_tmp_att_weights_list))
 		np.save(saved_weights_folder+"/test_pred_label.npy", np.asarray(test_pred_label_list))
 		np.save(saved_weights_folder+"/test_gt_label.npy", np.asarray(test_gt_label_list))
-		np.save(saved_weights_folder+"/test_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
+		np.save(saved_weights_folder+"/test_spa_att_weights.npy", test_spa_att_weights_np.cpu().data.numpy())
 		final_test_accuracy = avg_test_accuracy/num_step_per_epoch_test
 
 		print("final_test_accuracy: ", final_test_accuracy)
@@ -431,6 +444,7 @@ def main():
 		epoch_train_reg_loss = 0 
 		epoch_train_tv_loss = 0
 		epoch_train_contrast_loss = 0
+		epoch_train_mask_l1_loss =0
 		for i, (train_sample,train_batch_name) in enumerate(train_data_loader):
 			
 			train_batch_feature = train_sample['feature'].transpose(1,2)
@@ -439,7 +453,7 @@ def main():
 			train_batch_feature = Variable(train_batch_feature).cuda().float()
 			train_batch_label = Variable(train_batch_label[:,0]).cuda().long()
 			
-			train_mask, train_pred_label, train_loss, train_reg_loss, train_tv_loss, train_contrast_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
+			train_mask, train_pred_label, train_mask_l1_loss, train_loss, train_reg_loss, train_tv_loss, train_contrast_loss, train_accuracy, train_spa_att_weights, train_corrects = train(FLAGS.train_batch_size, train_batch_feature, train_batch_label, lstm_action, model_optimizer, criterion)
 			#print("train_spa_att_weights[0:5] ",train_spa_att_weights[0:5])
 			train_batch_name = np.swapaxes(np.asarray(train_batch_name),0,1)
 			train_name_list.append(train_batch_name)
@@ -450,6 +464,7 @@ def main():
 			epoch_train_reg_loss += train_reg_loss
 			epoch_train_tv_loss += train_tv_loss
 			epoch_train_contrast_loss += train_contrast_loss
+			epoch_train_mask_l1_loss += train_mask_l1_loss
 			print("batch {}, train_acc: {} ".format(i, train_accuracy))
 			total_train_corrects+= train_corrects
 			
@@ -461,6 +476,7 @@ def main():
 		epoch_train_reg_loss = epoch_train_reg_loss/num_step_per_epoch_train
 		epoch_train_tv_loss = epoch_train_tv_loss/num_step_per_epoch_train
 		epoch_train_contrast_loss = epoch_train_contrast_loss/num_step_per_epoch_train
+		epoch_train_mask_l1_loss = epoch_train_mask_l1_loss/num_step_per_epoch_train
 		#print("train_spa_att_weights_np.shape: ",train_spa_att_weights_np.shape)
 		np.save(saved_weights_folder+"/train_name_{}.npy".format('%03d'%epoch_num), np.asarray(train_name_list))
 		np.save(saved_weights_folder+"/train_att_weights_{}.npy".format('%03d'%epoch_num), train_spa_att_weights_np.cpu().data.numpy())
@@ -474,6 +490,7 @@ def main():
 		writer.add_scalar('train_loss', epoch_train_loss, epoch_num)
 		writer.add_scalar('train_tv_loss', epoch_train_tv_loss, epoch_num)
 		writer.add_scalar('train_reg_loss', epoch_train_reg_loss, epoch_num)
+		writer.add_scalar('train_mask_l1_loss', epoch_train_mask_l1_loss, epoch_num)
 		writer.add_scalar('train_contrast_loss', epoch_train_contrast_loss, epoch_num)
 		
 		save_train_file = log_name+"_train_acc.txt"
